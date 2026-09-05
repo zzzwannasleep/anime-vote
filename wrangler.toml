@@ -2,6 +2,18 @@ name = "anime-vote"
 main = "src/worker.js"
 compatibility_date = "2026-01-01"
 
+# 部署时保留后台里填的 vars 和 secrets。
+# 默认情况下这个配置文件是环境配置的唯一真相源，wrangler 每次部署都会把
+# 后台里手填的东西删掉重来（它自己的 schema 原话："If you change your vars in
+# the dashboard, wrangler *will* override/delete them on its next deploy"）。
+# 而这个站的 ADMIN_PASSWORD 就是在后台/一键部署按钮里填的，
+# 删了这行，第一次推代码口令就没了，管理页当场登不进去。
+#
+# ⚠️ 位置有讲究：TOML 里顶层键必须写在所有 [表头] 之前。
+# 放到下面任何一个表后面，它会被算成那个表的字段，wrangler 只报一句
+# "Unexpected fields found in ... field" 的 WARNING 就继续跑，配置静默失效。
+keep_vars = true
+
 # 静态页面目录（public/index.html、public/season/*.json）
 [assets]
 directory = "public"
@@ -11,22 +23,17 @@ binding = "ASSETS"
 # 所以必须把 /archive/* 显式交给 Worker，由它校验密钥后再决定给不给。
 run_worker_first = ["/archive/*"]
 
-# 投票数据。id 从网页后台 Storage & Databases -> KV -> 建一个叫 VOTES 的
-# namespace，把它的 Namespace ID 抄过来替换下面这行。
-# 必须填在这里：网页后台里手动加的 KV 绑定会被下一次部署删掉，
-# keep_vars 只保 vars 和 secrets，保不住绑定。
+# 投票数据。
+# 故意不写 id：wrangler 判断「这个绑定要不要自动开」的依据就是 id 存不存在
+#   （wrangler 源码 KVHandler.isFullySpecified() { return !!this.binding.id }）。
+# 不写 id -> 第一次部署时自动建好 KV namespace 并接上；
+# 以后每次部署走 canInherit，认出同名绑定，不会重复建。
+# 反过来，如果这里填了一个假 id（比如占位符），wrangler 会认为「已完全指定」，
+# 既不新建也不校验，部署能过，但线上一读 KV 就炸。所以宁可不写。
 [[kv_namespaces]]
 binding = "VOTES"
-id = "PUT_YOUR_KV_ID_HERE"
 
-# 口令不写在这里。在 Cloudflare 网页后台
+# 口令不写在这里。用 README 里的一键部署按钮，或者后台
 # Workers & Pages -> 本 Worker -> Settings -> Variables and Secrets
 # 加一条 ADMIN_PASSWORD，类型选 Secret（加密，加完就看不到明文）。
 # 现在只有这一个口令：组员是管理页发的一次性注册链接注册，各自拿一枚密钥。
-
-# 默认情况下这个配置文件是环境配置的唯一真相源，wrangler 每次部署都会把
-# 后台里手填的变量和密钥删掉重来（wrangler 自己的 schema 原话：
-# "If you change your vars in the dashboard, wrangler *will* override/delete
-#  them on its next deploy"）。而这个站的口令就是在后台填的，
-# 所以这行不能删——它让部署保留后台里的 vars 和 secrets。
-keep_vars = true

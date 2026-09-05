@@ -257,6 +257,19 @@ console.log('\n[后端契约]');
   const dashSecret = /Variables and Secrets/.test(readFileSync('README.md', 'utf8'));
   ok(!dashSecret || /^\s*keep_vars\s*=\s*true/m.test(toml),
      'wrangler.toml 有 keep_vars = true（README 教人在后台填口令，不配这条会被部署删掉）');
+  // TOML 的顶层键必须写在所有 [表头] 之前。写到表后面会被算成那个表的字段，
+  // wrangler 只吐一句 "Unexpected fields found in ..." 的 WARNING 就继续跑，
+  // 配置静默失效——踩过一次：keep_vars 掉进了 [[kv_namespaces]] 里。
+  ok(toml.indexOf('keep_vars') < toml.search(/^\[/m),
+     'keep_vars 写在第一个 [表头] 之前（掉进表里就只是个被忽略的字段，不报错）');
+  // 另一条同类：wrangler 靠 id 存不存在来决定要不要自动开 KV
+  // （KVHandler.isFullySpecified() { return !!this.binding.id }）。
+  // 填个占位符 id，部署照样成功，但线上一读 KV 就炸——比不填危险得多。
+  ok(!/\[\[kv_namespaces\]\][^[]*\bid\s*=/.test(toml),
+     'kv_namespaces 没写 id（写了就不会自动开 KV，填占位符更是线上一读就炸）');
+  const ex = readFileSync('.dev.vars.example', 'utf8');
+  ok(/^ADMIN_PASSWORD\s*=\s*(#|$)/m.test(ex),
+     '.dev.vars.example 只有变量名没有值（它是一键部署按钮的密钥清单，填了值就等于把口令提交了）');
   ok(/archivedBallots/.test(w) && /season\.status === 'open' \? null : await archivedBallots/.test(w),
      '已截止的季度先读存档，读到就不碰 KV');
   ok(/const source = ballots \? 'archive' : 'kv'/.test(w), 'results 回带数据来源，前端和测试才验得了');

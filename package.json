@@ -18,5 +18,20 @@
   },
   "dependencies": {
     "gsap": "^3.15.0"
+  },
+  "cloudflare": {
+    "label": "拨雪寻春番剧译制投票",
+    "products": [
+      "Workers",
+      "KV"
+    ],
+    "bindings": {
+      "ADMIN_PASSWORD": {
+        "description": "管理员口令。自己想一个，别用弱口令——拿到它就能发注册链接、看全组票面、撤票。"
+      },
+      "VOTES": {
+        "description": "存投票数据的 KV namespace，会自动帮你建好，不用管。"
+      }
+    }
   }
 }
