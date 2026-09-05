@@ -267,6 +267,21 @@ console.log('\n[后端契约]');
   // 填个占位符 id，部署照样成功，但线上一读 KV 就炸——比不填危险得多。
   ok(!/\[\[kv_namespaces\]\][^[]*\bid\s*=/.test(toml),
      'kv_namespaces 没写 id（写了就不会自动开 KV，填占位符更是线上一读就炸）');
+  // README 里的站内锚点必须指得到真标题。改标题忘了改链接不会有任何报错，
+  // 点下去只是无声地不动——刚把「抓番剧数据」改名时就断了一个。
+  const md = readFileSync('README.md', 'utf8');
+  const slug = (h) => h.trim().toLowerCase()
+    .replace(/[`*_]/g, '').replace(/[^\w一-龥 -]/g, '').replace(/ /g, '-');
+  const heads = new Set([...md.matchAll(/^#{2,4} (.+)$/gm)].map((m) => slug(m[1])));
+  const dead = [...md.matchAll(/\]\(#([^)]+)\)/g)].map((m) => m[1]).filter((a) => !heads.has(a));
+  ok(!dead.length, 'README 的站内锚点都指得到真标题', dead.join(' | '));
+
+  // 工作流跑的脚本得真的存在，重命名脚本忘了改工作流只有推上去才会发现
+  const wf = readFileSync('.github/workflows/fetch-anime.yml', 'utf8');
+  ok(/node fetch-anime\.mjs/.test(wf) && existsSync('fetch-anime.mjs'), '工作流跑的 fetch-anime.mjs 存在');
+  ok(/BANGUMI_TOKEN/.test(readFileSync('fetch-anime.mjs', 'utf8')),
+     'fetch-anime.mjs 认 BANGUMI_TOKEN（工作流会把它传进来，脚本不读就是白配）');
+
   const ex = readFileSync('.dev.vars.example', 'utf8');
   ok(/^ADMIN_PASSWORD\s*=\s*(#|$)/m.test(ex),
      '.dev.vars.example 只有变量名没有值（它是一键部署按钮的密钥清单，填了值就等于把口令提交了）');

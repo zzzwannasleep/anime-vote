@@ -90,14 +90,15 @@ SITE=https://你的域名 BASE=https://你的域名 node keys.mjs --invite 5
 - `status: open` 能投票，`closed` 只能看。截止就把它改成 `closed` 再 `npx wrangler deploy`。
 - 投票期的活票在 KV 里按季度分桶（`ballot:<季度>:<名字>`），互不干扰。
 
-开新一季：
+开新一季：**Actions → 抓番剧数据 → Run workflow**，填 `2027` / `1`，
+勾上「抓完设为默认打开的季度」。它会生成 `public/season/2027-01.json`、
+把这一季追加进 `seasons.json`、提交回仓库，Cloudflare 收到 push 自动部署。
+
+想在本地跑也行，工作流跑的是同一个脚本（跑完自己 commit + push）：
 
 ```bash
-node fetch-anime.mjs 2027 1 --current   # 抓番 + 登记季度 + 设为默认打开
-npx wrangler deploy
+node fetch-anime.mjs 2027 1 --current   # 加 --all 连剧场版 / OVA 一起要
 ```
-
-会生成 `public/season/2027-01.json` 并把这一季追加进 `seasons.json`。加 `--all` 连剧场版/OVA 一起要。
 
 ### 留档：存档进仓库，顺带省掉 KV
 
@@ -178,7 +179,7 @@ CF 免费额度 10 万请求/天、KV 10 万次读/天，组里这个量级远�
 > ⚠️ **按钮会在你账号下克隆一份新仓库**，之后你维护的是那一份，不是 `zzzwannasleep/anime-vote`。
 > 你自己上线不想多一份克隆的话，走下面的「接现有仓库」。
 
-部署完还差一步——番剧数据得抓一次，见[抓番剧数据](#抓番剧数据每季一次)。
+部署完还差一步——番剧数据得抓一次，见[抓番剧数据](#抓番剧数据github-actions不用碰命令行)。
 然后打开 `你的域名/admin` 输口令，就能发注册链接了。
 
 ### 接现有仓库（不想被克隆）
@@ -207,22 +208,52 @@ KV 一样是首次部署自动开。口令要自己去
 > 后台的按钮文案 Cloudflare 会改，菜单层级一两年不动。
 > 找不到同名按钮就在那一层找意思相同的那个。
 
-### 抓番剧数据（每季一次）
+### 抓番剧数据（GitHub Actions，不用碰命令行）
 
-这一步没法在网页里做——它的产物是要提交进仓库的静态文件：
+仓库 **Actions → 抓番剧数据 → Run workflow**，填年月点绿按钮：
 
-```bash
-npm install
-node fetch-anime.mjs 2026 10 --current
-git add public/season public/seasons.json
-git commit -m "2026-10 番剧数据" && git push
-```
+| 填什么 | 说明 |
+|---|---|
+| 年份 / 月份 | 比如 `2027` + `1`。**两个都留空 = 刷新当前季度** |
+| 抓完设为默认打开的季度 | 开新一季时勾上 |
+| 连剧场版 / OVA 一起要 | 默认只要 TV 和 WEB |
 
-推上去就自动部署。数据来自 Bangumi：列表走 `POST /v0/search/subjects`
-（按 `air_date` 区间过滤），再逐部拉 `/v0/subjects/{id}` 补导演、原作、制作这些 staff。
-都匿名可用，无需 token。一季抓一次落成静态文件，运行时不再碰外部 API。
+抓完直接提交回仓库，Cloudflare 收到 push 自动重新部署，全程不用管。
+
+**另外每周一凌晨自动刷新一次当前季度**。新番开播前 staff 是一点点补上去的，
+刚开季抓一次会缺一半导演和制作，放着不管就一直缺——所以定时跑，数据没变化就不提交。
+
+**不需要任何 API key。** bgm 的搜索和详情接口都匿名可用——实测直接 200，
+带个瞎编的 token 也照样 200，它压根不看这个头。
+只有 GitHub 的出口 IP 真被限流时才需要去
+**Settings → Secrets and variables → Actions** 加一条 `BANGUMI_TOKEN`，
+不加也能跑（脚本里 `process.env.BANGUMI_TOKEN` 为空就走匿名）。
+
+数据来自 Bangumi：列表走 `POST /v0/search/subjects`（按 `air_date` 区间过滤），
+再逐部拉 `/v0/subjects/{id}` 补导演、原作、制作这些 staff。
+落成静态文件，运行时不再碰外部 API。
 
 > 萌娘百科的 MediaWiki API 已被站方禁用（`action-notallowed`），只能爬 HTML，维护成本不值当，没用。
+
+要在本地跑也行，工作流跑的就是同一个脚本：
+
+```bash
+node fetch-anime.mjs 2026 10 --current
+```
+
+#### 为什么不让 Worker 自己定时爬
+
+想过，两个硬限制堵死了：
+
+- **Worker 写不了 `public/`。** 静态资源在部署时就烤死了，爬到的数据只能塞进 KV。
+  那每次开页面都要读 KV 取番剧列表——跟当初「已截止季度读仓库存档来省 KV」
+  的取舍正好反着来。
+- **免费版跑不完。** 单次请求最多 **50 个 subrequest**、CPU **10ms**，
+  而这脚本一季要串行上百个详情请求。付费版放宽到 1000 个，但为这件一季一次
+  的事上付费版不划算。
+
+GitHub Actions 这边：公开仓库免费无限时长，跑完 19 秒，产物直接是仓库里的静态文件，
+架构一点没动。
 
 ---
 
@@ -285,7 +316,7 @@ npx wrangler dev                 # http://localhost:8787
 node seed.mjs                    # 灌 6 个假成员的提名，用来预览汇总页效果
 node keys.mjs --invite 1         # 生成一条注册链接，自己走一遍注册流程
 
-node preflight.mjs       # 119 项前端静态自检，不用起服务
+node preflight.mjs       # 122 项前端静态自检，不用起服务
 node test.mjs            # 72 项后端端到端自检
 node uitest.mjs --shot   # 80 项真浏览器 UI 回归，截图存 shots/
 npm run check            # 三套连跑
@@ -359,6 +390,7 @@ GSAP 换成 CDN、跳过注册和密钥。用来给没装环境的人看效果�
 | `public/vendor/` | GSAP 3.15 本体，随包部署不走外部 CDN |
 | `src/worker.js` | 注册码 + 密钥体系 + 岗位白名单 + 分季存储 + 存档鉴权 |
 | `fetch-anime.mjs` | 从 Bangumi 抓番剧列表和 staff |
+| `.github/workflows/fetch-anime.yml` | 上面那个脚本的 Actions 版：手动填年月，外加每周刷新当前季度 |
 | `keys.mjs` | 发注册链接 / 发密钥 / 查名单 / 吊销 |
 | `archive.mjs` | 导出与回灌季度存档 |
 | `preflight.mjs` | 前端静态自检 |
