@@ -249,6 +249,14 @@ console.log('\n[后端契约]');
   const routed = /run_worker_first\s*=\s*\[[^\]]*["']\/archive\/\*["']/.test(readFileSync('wrangler.toml', 'utf8'));
   ok(guard, 'worker 里挡了 /archive/ 的直接访问');
   ok(!guard || routed, 'wrangler.toml 把 /archive/* 交给 Worker 先跑（不配这条，上面那个 403 是死代码）');
+  // 第三对「必须成对出现」：README 教的是在网页后台填 ADMIN_PASSWORD，
+  // 而 wrangler 默认把配置文件当唯一真相源，部署时会删掉后台里手填的 vars/secrets
+  // （schema 原话：wrangler *will* override/delete them on its next deploy）。
+  // 没有 keep_vars = true，推一次代码口令就没了，管理页当场登不进去。
+  const toml = readFileSync('wrangler.toml', 'utf8');
+  const dashSecret = /Variables and Secrets/.test(readFileSync('README.md', 'utf8'));
+  ok(!dashSecret || /^\s*keep_vars\s*=\s*true/m.test(toml),
+     'wrangler.toml 有 keep_vars = true（README 教人在后台填口令，不配这条会被部署删掉）');
   ok(/archivedBallots/.test(w) && /season\.status === 'open' \? null : await archivedBallots/.test(w),
      '已截止的季度先读存档，读到就不碰 KV');
   ok(/const source = ballots \? 'archive' : 'kv'/.test(w), 'results 回带数据来源，前端和测试才验得了');

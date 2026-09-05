@@ -11,10 +11,22 @@ binding = "ASSETS"
 # 所以必须把 /archive/* 显式交给 Worker，由它校验密钥后再决定给不给。
 run_worker_first = ["/archive/*"]
 
-# 投票数据。id 由 `npx wrangler kv namespace create VOTES` 生成后填这里
+# 投票数据。id 从网页后台 Storage & Databases -> KV -> 建一个叫 VOTES 的
+# namespace，把它的 Namespace ID 抄过来替换下面这行。
+# 必须填在这里：网页后台里手动加的 KV 绑定会被下一次部署删掉，
+# keep_vars 只保 vars 和 secrets，保不住绑定。
 [[kv_namespaces]]
 binding = "VOTES"
 id = "PUT_YOUR_KV_ID_HERE"
 
-# 口令不写在这里！用 `npx wrangler secret put ADMIN_PASSWORD` 设置。
+# 口令不写在这里。在 Cloudflare 网页后台
+# Workers & Pages -> 本 Worker -> Settings -> Variables and Secrets
+# 加一条 ADMIN_PASSWORD，类型选 Secret（加密，加完就看不到明文）。
 # 现在只有这一个口令：组员是管理页发的一次性注册链接注册，各自拿一枚密钥。
+
+# 默认情况下这个配置文件是环境配置的唯一真相源，wrangler 每次部署都会把
+# 后台里手填的变量和密钥删掉重来（wrangler 自己的 schema 原话：
+# "If you change your vars in the dashboard, wrangler *will* override/delete
+#  them on its next deploy"）。而这个站的口令就是在后台填的，
+# 所以这行不能删——它让部署保留后台里的 vars 和 secrets。
+keep_vars = true

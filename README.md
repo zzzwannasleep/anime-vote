@@ -159,28 +159,136 @@ CF 免费额度 10 万请求/天、KV 10 万次读/天，组里这个量级远�
 
 ## 部署
 
+全程在 Cloudflare 网页后台点，不用装 wrangler、不用敲命令。
+只有第 4 步「抓番剧数据」要在本地跑一次 node——因为它的产物是要提交进仓库的静态文件。
+
+> 后台的按钮文案 Cloudflare 会改，菜单层级一两年不动。
+> 下面写的是层级，找不到同名按钮就在那一层找意思相同的那个。
+
+### 1. 建 KV（放投票数据）
+
+后台左侧 **Storage & Databases → KV → Create namespace**，名字填 `VOTES`。
+
+建好后列表里那一行有个 **Namespace ID**，是一串 32 位十六进制，复制它。
+
+### 2. 把这个 id 填进 `wrangler.toml` 并提交
+
+```toml
+[[kv_namespaces]]
+binding = "VOTES"
+id = "刚才复制的那串"      # 替换 PUT_YOUR_KV_ID_HERE
+```
+
+**必须填在文件里，不能只在后台点绑定。** 后台手动加的 KV 绑定会被下一次部署整个删掉——
+配置文件是绑定的唯一真相源。这一点后面「唯一真相源」那节说清楚了。
+
+Namespace ID 不是凭据，它只是你账号下的一个资源编号，没有 API token 谁也用不了，
+可以放心进仓库。要是仍然不想让它出现在提交里：
+
+```bash
+git update-index --skip-worktree wrangler.toml   # 本地填、本地留，git 当没看见
+```
+
+但这样 Workers Builds 拉到的还是占位符，部署会连不上 KV。所以除非你改用手动上传，
+否则还是填进去提交最省事。
+
+### 3. 把仓库接上 Worker
+
+后台 **Workers & Pages → Create → 从 Git 导入**（Import a repository），
+授权 GitHub 后选 `zzzwannasleep/anime-vote`，分支 `main`。
+
+它会读仓库根目录的 `wrangler.toml`，自动认出这是个带静态资源的 Worker。构建配置：
+
+| 项 | 填什么 |
+|---|---|
+| Build command | 留空（这站没有构建步骤，`public/` 就是成品） |
+| Deploy command | `npx wrangler deploy` |
+| Root directory | `/` |
+
+⚠️ **后台里这个 Worker 的名字必须和 `wrangler.toml` 里的 `name = "anime-vote"` 一致**，
+不一致构建会直接失败，报错信息不太好认。
+
+接完之后，以后每次往 `main` 推代码它都会自动重新部署，不用再管。
+
+### 4. 抓番剧数据（本地跑一次，每季一次）
+
+```bash
+npm install
+node fetch-anime.mjs 2026 10 --current
+git add public/season public/seasons.json && git commit -m "2026-10 番剧数据" && git push
+```
+
+推上去就自动部署了。数据来自 Bangumi：列表走 `POST /v0/search/subjects`
+（按 `air_date` 区间过滤），再逐部拉 `/v0/subjects/{id}` 补导演、原作、制作这些 staff。
+都匿名可用，无需 token。一季抓一次落成静态文件，运行时不再碰外部 API。
+
+> 萌娘百科的 MediaWiki API 已被站方禁用（`action-notallowed`），只能爬 HTML，维护成本不值当，没用。
+
+### 5. 设管理员口令
+
+后台 **Workers & Pages → anime-vote → Settings → Variables and Secrets → Add**：
+
+| 项 | 填什么 |
+|---|---|
+| Type | **Secret**（不是 Text！选 Text 就是明文，后台谁都能看见） |
+| Name | `ADMIN_PASSWORD` |
+| Value | 你的管理员口令 |
+
+存完点 **Deploy** 让它生效。加密之后后台也看不到明文了，忘了只能改不能查。
+
+这是整个站唯一的一个口令。组员不用它——他们走管理页发的一次性注册链接。
+
+### 6. 开张
+
+打开 `你的域名/admin`，输管理员口令进管理页，发注册链接给组员。
+
+---
+
+### 唯一真相源：哪些东西后台填了会被删
+
+这是这套部署方式唯一的坑，踩了会很难查（站好好的，推一次代码就崩）。
+
+`wrangler.toml` 默认是环境配置的**唯一真相源**，像 terraform 文件一样。
+wrangler 自己的配置 schema 原话：
+
+> By default, the Wrangler configuration file is the source of truth for your
+> environment configuration, like a terraform file. If you change your vars in
+> the dashboard, wrangler **will** override/delete them on its next deploy.
+
+也就是说每次部署都是"把配置文件里写的推上去，配置文件里没写的删掉"。
+而第 5 步的口令恰恰是在后台填的。所以 `wrangler.toml` 里有这一行：
+
+```toml
+keep_vars = true
+```
+
+**这行删了，第一次推代码就会把 `ADMIN_PASSWORD` 删掉，管理页当场登不进去。**
+它让部署保留后台里的 vars 和 secrets（在 wrangler 里这个开关同时管这两样）。
+
+它保不住的是**绑定**——KV、R2、D1 这些。所以 KV 的 id 只能写在配置文件里（第 2 步）。
+一句话记法：
+
+| 在后台填的 | 推代码之后 |
+|---|---|
+| Secrets / 变量 | ✅ 留着（靠 `keep_vars = true`） |
+| KV / R2 / D1 绑定 | ❌ 被删，必须写进 `wrangler.toml` |
+| 路由、自定义域 | ❌ 被删，必须写进 `wrangler.toml` |
+
+### 附：命令行部署
+
+不想点网页的话，等价的一套：
+
 ```bash
 npm install
 npx wrangler login
-
-# 1. 建 KV，把输出的 id 填进 wrangler.toml 的 PUT_YOUR_KV_ID_HERE
-npx wrangler kv namespace create VOTES
-
-# 2. 设唯一的一个口令（交互式输入，不落磁盘、不进仓库）
-npx wrangler secret put ADMIN_PASSWORD
-
-# 3. 抓番剧 + 上线
+npx wrangler kv namespace create VOTES   # 输出的 id 填进 wrangler.toml
+npx wrangler secret put ADMIN_PASSWORD   # 交互式输入，不落磁盘、不进仓库
 node fetch-anime.mjs 2026 10 --current
 npx wrangler deploy
-
-# 4. 打开 你的域名/admin，发注册链接给组员
 ```
 
-番剧数据来自 Bangumi：列表走 `POST /v0/search/subjects`（按 `air_date` 区间过滤），
-再逐部拉 `/v0/subjects/{id}` 补导演、原作、制作这些 staff。都匿名可用，无需 token。
-一季抓一次落成静态文件，运行时不再碰外部 API。
-
-> 萌娘百科的 MediaWiki API 已被站方禁用（`action-notallowed`），只能爬 HTML，维护成本不值当，没用。
+命令行下 `keep_vars = true` 不影响这套流程——`wrangler secret put` 本来就是单独一次
+API 调用，不经过部署。留着它是为了让网页那条路也走得通。
 
 ## 本地调试与自检
 
@@ -190,7 +298,7 @@ npx wrangler dev                 # http://localhost:8787
 node seed.mjs                    # 灌 6 个假成员的提名，用来预览汇总页效果
 node keys.mjs --invite 1         # 生成一条注册链接，自己走一遍注册流程
 
-node preflight.mjs       # 115 项前端静态自检，不用起服务
+node preflight.mjs       # 116 项前端静态自检，不用起服务
 node test.mjs            # 72 项后端端到端自检
 node uitest.mjs --shot   # 80 项真浏览器 UI 回归，截图存 shots/
 npm run check            # 三套连跑
