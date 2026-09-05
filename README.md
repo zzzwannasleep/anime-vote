@@ -316,7 +316,7 @@ npx wrangler dev                 # http://localhost:8787
 node seed.mjs                    # 灌 6 个假成员的提名，用来预览汇总页效果
 node keys.mjs --invite 1         # 生成一条注册链接，自己走一遍注册流程
 
-node preflight.mjs       # 122 项前端静态自检，不用起服务
+node preflight.mjs       # 124 项前端静态自检，不用起服务
 node test.mjs            # 72 项后端端到端自检
 node uitest.mjs --shot   # 80 项真浏览器 UI 回归，截图存 shots/
 npm run check            # 三套连跑

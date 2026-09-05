@@ -100,8 +100,18 @@ list.sort((a, b) => (a.date || '').localeCompare(b.date || ''));
 
 /* 3. 落盘 + 登记季度 */
 if (!existsSync('public/season')) mkdirSync('public/season', { recursive: true });
-writeFileSync(`public/season/${SEASON}.json`,
-  JSON.stringify({ season: SEASON, label: LABEL, updated: new Date().toISOString(), count: list.length, list }, null, 1));
+const OUT = `public/season/${SEASON}.json`;
+// updated 无条件写当前时间的话，定时任务每周都会提交一个只改时间戳的空 diff，
+// 工作流里那句「数据没变化，不提交」就永远轮不到——番剧没变就沿用旧时间戳。
+const prev = existsSync(OUT) ? JSON.parse(readFileSync(OUT, 'utf8')) : null;
+const unchanged = prev && JSON.stringify(prev.list) === JSON.stringify(list);
+writeFileSync(OUT, JSON.stringify({
+  season: SEASON,
+  label: LABEL,
+  updated: unchanged ? prev.updated : new Date().toISOString(),
+  count: list.length,
+  list,
+}, null, 1));
 
 const SEASONS = 'public/seasons.json';
 const cur = existsSync(SEASONS) ? JSON.parse(readFileSync(SEASONS, 'utf8')) : { current: SEASON, list: [] };
@@ -113,5 +123,5 @@ if (setCurrent || !cur.list.some((x) => x.id === cur.current)) cur.current = SEA
 writeFileSync(SEASONS, JSON.stringify(cur, null, 2));
 
 const withStaff = list.filter((x) => x.staff.length).length;
-console.log(`\n${list.length} 部 -> public/season/${SEASON}.json（${withStaff} 部带 staff）`);
+console.log(`\n${list.length} 部 -> ${OUT}（${withStaff} 部带 staff${unchanged ? '，跟上次一模一样' : ''}）`);
 console.log(`seasons.json 现有 ${cur.list.length} 季，当前 = ${cur.current}`);

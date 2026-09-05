@@ -281,6 +281,12 @@ console.log('\n[后端契约]');
   ok(/node fetch-anime\.mjs/.test(wf) && existsSync('fetch-anime.mjs'), '工作流跑的 fetch-anime.mjs 存在');
   ok(/BANGUMI_TOKEN/.test(readFileSync('fetch-anime.mjs', 'utf8')),
      'fetch-anime.mjs 认 BANGUMI_TOKEN（工作流会把它传进来，脚本不读就是白配）');
+  const fa = readFileSync('fetch-anime.mjs', 'utf8');
+  // updated 无条件写当前时间的话，每次定时跑都会产出一个只改时间戳的 diff，
+  // 工作流里「数据没变化，不提交」那条分支就永远是死代码。
+  ok(/updated: unchanged \? prev\.updated : new Date/.test(fa),
+     '番剧没变时沿用旧的 updated（否则定时任务每周提交一次空 diff）');
+  ok(/数据没变化，不提交/.test(wf), '工作流有「没变化就不提交」的分支');
 
   const ex = readFileSync('.dev.vars.example', 'utf8');
   ok(/^ADMIN_PASSWORD\s*=\s*(#|$)/m.test(ex),
