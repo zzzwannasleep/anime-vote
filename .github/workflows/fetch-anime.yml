@@ -1,0 +1,106 @@
+# 抓番剧数据并提交回仓库。推上去之后 Cloudflare 会自己重新部署。
+#
+# 两种触发方式：
+#   1. 手动：Actions -> 抓番剧数据 -> Run workflow，填年月即可
+#   2. 定时：每周一凌晨刷新 seasons.json 里标记为 current 的那一季
+#      （新番开播前 staff 是一点点填上去的，放着不管信息会一直缺）
+#
+# 不需要任何 API key：bgm 的这两个接口匿名可用。
+# 只有真被限流时才需要去 Settings -> Secrets 加 BANGUMI_TOKEN，不加也能跑。
+name: 抓番剧数据
+
+on:
+  workflow_dispatch:
+    inputs:
+      year:
+        description: 年份，比如 2027。留空则刷新当前季度
+        required: false
+        type: string
+      month:
+        description: 月份，1 / 4 / 7 / 10
+        required: false
+        type: string
+      current:
+        description: 抓完把这一季设为默认打开的季度
+        type: boolean
+        default: false
+      all:
+        description: 连剧场版 / OVA 一起要（默认只 TV 和 WEB）
+        type: boolean
+        default: false
+  schedule:
+    - cron: '0 20 * * 0'      # 每周一 04:00（北京时间）刷新当前季度
+
+# 只给写仓库的权限，别的都不给
+permissions:
+  contents: write
+
+# 同时只跑一个，避免两次运行撞在同一个文件上
+concurrency:
+  group: fetch-anime
+  cancel-in-progress: false
+
+jobs:
+  fetch:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      # 不装依赖：fetch-anime.mjs 只用 node 自带的 fs 和 fetch
+
+      - name: 定位要抓的季度
+        id: pick
+        # 输入走 env 传，不直接内插进 shell——手填的字符串别进命令行
+        env:
+          IN_YEAR: ${{ inputs.year }}
+          IN_MONTH: ${{ inputs.month }}
+        run: |
+          set -euo pipefail
+          if [ -n "${IN_YEAR:-}" ] && [ -n "${IN_MONTH:-}" ]; then
+            YEAR=$IN_YEAR; MONTH=$IN_MONTH
+          else
+            CUR=$(node -p "require('./public/seasons.json').current")
+            YEAR=${CUR%-*}; MONTH=${CUR#*-}
+            echo "没填年月，刷新当前季度 $CUR"
+          fi
+          case "$YEAR" in ''|*[!0-9]*) echo "年份不是数字：$YEAR"; exit 1;; esac
+          case "$MONTH" in ''|*[!0-9]*) echo "月份不是数字：$MONTH"; exit 1;; esac
+          echo "year=$YEAR" >> "$GITHUB_OUTPUT"
+          echo "month=$MONTH" >> "$GITHUB_OUTPUT"
+          echo "season=$YEAR-$(printf %02d "$((10#$MONTH))")" >> "$GITHUB_OUTPUT"
+
+      - name: 抓取
+        env:
+          BANGUMI_TOKEN: ${{ secrets.BANGUMI_TOKEN }}   # 没配就是空字符串，脚本会走匿名
+        run: |
+          set -euo pipefail
+          node fetch-anime.mjs "${{ steps.pick.outputs.year }}" "${{ steps.pick.outputs.month }}" \
+            ${{ inputs.all == true && '--all' || '' }} \
+            ${{ inputs.current == true && '--current' || '' }}
+
+      - name: 提交
+        run: |
+          set -euo pipefail
+          git config user.name  "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add public/season public/seasons.json
+          if git diff --cached --quiet; then
+            echo "数据没变化，不提交"
+            exit 0
+          fi
+          git commit -m "${{ steps.pick.outputs.season }} 番剧数据（自动抓取）"
+          git push
+
+      - name: 小结
+        run: |
+          echo "### ${{ steps.pick.outputs.season }}" >> "$GITHUB_STEP_SUMMARY"
+          node -e "
+            const f='public/season/${{ steps.pick.outputs.season }}.json';
+            const d=require('./'+f);
+            const s=d.list.filter(x=>x.staff.length).length;
+            console.log(\`- \${d.count} 部，其中 \${s} 部带 staff\`);
+            console.log(\`- 落盘 \${f}\`);
+          " >> "$GITHUB_STEP_SUMMARY"

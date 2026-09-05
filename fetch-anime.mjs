@@ -11,7 +11,11 @@ import { readFileSync, writeFileSync, mkdirSync, existsSync } from 'node:fs';
 const [year, month] = [process.argv[2] || '2026', process.argv[3] || '10'];
 const keepAll = process.argv.includes('--all');
 const setCurrent = process.argv.includes('--current');
-const UA = 'AnimeVote/1.0 (https://github.com/subteam/voteweb)';
+const UA = 'AnimeVote/1.0 (https://github.com/zzzwannasleep/anime-vote)';
+// bgm 的这两个接口都匿名可用（实测 200，带个瞎编的 token 也照样 200，它压根不看）。
+// 留这个口子只是给 CI 用：GitHub Actions 出口 IP 是共享的，真被限流了
+// 就去仓库 Settings -> Secrets 加一条 BANGUMI_TOKEN，不加也能跑。
+const TOKEN = process.env.BANGUMI_TOKEN || '';
 
 const pad = (n) => String(n).padStart(2, '0');
 const SEASON = `${year}-${pad(month)}`;
@@ -20,7 +24,12 @@ const from = `${year}-${pad(month)}-01`;
 const to = Number(month) === 12 ? `${Number(year) + 1}-01-01` : `${year}-${pad(Number(month) + 1)}-01`;
 
 const bgm = (path, init) =>
-  fetch('https://api.bgm.tv' + path, { ...init, headers: { 'User-Agent': UA, 'Content-Type': 'application/json', ...(init?.headers) } });
+  fetch('https://api.bgm.tv' + path, { ...init, headers: {
+    'User-Agent': UA,
+    'Content-Type': 'application/json',
+    ...(TOKEN ? { Authorization: 'Bearer ' + TOKEN } : {}),
+    ...(init?.headers),
+  } });
 
 /* 1. 列表 */
 const all = [];
