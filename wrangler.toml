@@ -1,0 +1,20 @@
+name = "anime-vote"
+main = "src/worker.js"
+compatibility_date = "2026-01-01"
+
+# 静态页面目录（public/index.html、public/season/*.json）
+[assets]
+directory = "public"
+binding = "ASSETS"
+# 存档文件放在 public/ 下是为了跟着部署一起上线（已截止的季度靠它省掉 KV 调用），
+# 但里面有全组的名字和理由，不能裸奔。默认静态资源会在 Worker 之前直出，
+# 所以必须把 /archive/* 显式交给 Worker，由它校验密钥后再决定给不给。
+run_worker_first = ["/archive/*"]
+
+# 投票数据。id 由 `npx wrangler kv namespace create VOTES` 生成后填这里
+[[kv_namespaces]]
+binding = "VOTES"
+id = "PUT_YOUR_KV_ID_HERE"
+
+# 口令不写在这里！用 `npx wrangler secret put ADMIN_PASSWORD` 设置。
+# 现在只有这一个口令：组员是管理页发的一次性注册链接注册，各自拿一枚密钥。

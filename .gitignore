@@ -1,0 +1,7 @@
+node_modules/
+.wrangler/
+shots/
+preview.html
+# 本地口令，绝不进版本控制
+.dev.vars
+*.local

@@ -1,0 +1,1118 @@
+<!doctype html>
+<html lang="zh-CN" data-theme="light">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>拨雪寻春番剧译制投票</title>
+<link rel="icon" href="icon.png">
+<link rel="apple-touch-icon" href="icon.png">
+<style>
+/* 两套色板都跑过 WCAG AA 实测，见 preflight.mjs。
+   主题由 JS 在 <html data-theme> 上钉死（默认跟随系统），所以深色只需要写一份 */
+:root{
+  --bg:#f6f7fa;
+  --sf:#fff;
+  --sf-2:#eff1f6;
+  --line:#e2e6f0;
+  --line-2:#c6ccda;
+  --fg:#2a3145;      /* 12.1:1 */
+  --fg-2:#626b84;    /*  5.0:1 */
+  --fg-3:#697083;    /*  4.6:1，最浅一档到此为止 */
+  --ph:#646d81;      /*  4.6:1 on --sf-2 */
+  --brand:#5b6785;   /*  5.3:1，取自站标 */
+  --acc:#c43c58;     /*  5.1:1，樱 */
+  --acc-h:#b8324e;
+  --on-acc:#fff;     /*  5.1:1 on --acc */
+  --ok:#2d7a5c;
+  --warn:#9c611c;
+  --ok-bg:rgba(45,122,92,.11);   --ok-bd:rgba(45,122,92,.4);
+  --warn-bg:rgba(156,97,28,.09); --warn-bd:rgba(156,97,28,.38);
+  --bar:rgba(246,247,250,.92);
+  --glow:rgba(196,60,88,.07);
+  --ov:rgba(42,49,69,.44);
+  --sh:0 4px 16px rgba(91,103,133,.09);
+  --sh-2:0 10px 30px rgba(91,103,133,.15);
+  --sans:system-ui,-apple-system,"PingFang SC","HarmonyOS Sans SC","Source Han Sans SC","Noto Sans CJK SC","Microsoft YaHei",sans-serif;
+  --mono:ui-monospace,"SF Mono","Cascadia Mono",Consolas,monospace;
+  --r:10px;          /* 形状锁：全站唯一圆角值，唯一例外是圆形角标的 50% */
+  --ease:cubic-bezier(.16,1,.3,1);
+  color-scheme:light;
+}
+:root[data-theme=dark]{
+  --bg:#12141d;
+  --sf:#1a1d29;
+  --sf-2:#232736;
+  --line:#2c3143;
+  --line-2:#3d4459;
+  --fg:#e8eaf2;      /* 15.3:1 */
+  --fg-2:#a8b0c6;    /*  8.5:1 */
+  --fg-3:#9aa2ba;    /*  7.2:1 */
+  --ph:#8f97ae;      /*  5.1:1 on --sf-2 */
+  --brand:#a8b4d8;   /*  8.9:1 */
+  --acc:#f0798f;     /*  6.9:1 */
+  --acc-h:#f78fa2;
+  --on-acc:#2b0f16;  /*  6.6:1 on --acc */
+  --ok:#52c99a;
+  --warn:#e0a94f;
+  --ok-bg:rgba(82,201,154,.13);   --ok-bd:rgba(82,201,154,.36);
+  --warn-bg:rgba(224,169,79,.12); --warn-bd:rgba(224,169,79,.34);
+  --bar:rgba(18,20,29,.9);
+  --glow:rgba(240,121,143,.1);
+  --ov:rgba(6,7,11,.66);
+  --sh:0 4px 16px rgba(0,0,0,.4);
+  --sh-2:0 12px 34px rgba(0,0,0,.55);
+  color-scheme:dark;
+}
+*{box-sizing:border-box}
+html{-webkit-text-size-adjust:100%}
+body{margin:0;background:var(--bg);color:var(--fg);font-family:var(--sans);
+  font-size:15px;line-height:1.65;-webkit-font-smoothing:antialiased;
+  transition:background .25s,color .25s;
+  background-image:radial-gradient(760px 420px at 50% -180px,var(--glow),transparent 70%)}
+body.locked{overflow:hidden}
+a{color:var(--acc);text-decoration:none}
+a:hover{text-decoration:underline}
+
+.wrap{max-width:1200px;margin:0 auto;padding:0 26px}
+.mono{font-family:var(--mono);font-variant-numeric:tabular-nums}
+
+/* 所有控件同一套圆角、同一套边框 */
+input,textarea,button,select{font-family:inherit;font-size:inherit;color:inherit;border-radius:var(--r)}
+input,textarea,select{width:100%;background:var(--sf-2);border:1px solid var(--line-2);padding:9px 13px;
+  transition:border-color .2s,background .2s,box-shadow .2s}
+select{cursor:pointer;padding-right:9px}
+input::placeholder,textarea::placeholder{color:var(--ph)}
+input:focus,textarea:focus,select:focus{outline:none;border-color:var(--acc);background:var(--sf);
+  box-shadow:0 0 0 3px var(--ok-bg)}
+textarea{resize:vertical;line-height:1.6}
+
+button{cursor:pointer;border:1px solid var(--acc);background:var(--acc);color:var(--on-acc);
+  padding:9px 20px;font-weight:600;letter-spacing:.02em;
+  transition:background .18s,border-color .18s,box-shadow .2s,transform .12s var(--ease),color .18s}
+button:hover{background:var(--acc-h);border-color:var(--acc-h);box-shadow:var(--sh)}
+button:active{transform:translateY(1px)}
+button:disabled{opacity:.45;cursor:not-allowed;transform:none;box-shadow:none}
+button.ghost{background:var(--sf);border-color:var(--line-2);color:var(--fg-2);font-weight:500}
+button.ghost:hover{border-color:var(--brand);color:var(--brand);background:var(--sf)}
+button.ghost.active{background:var(--brand);border-color:var(--brand);color:var(--sf)}
+button.mini{padding:6px 13px;font-size:13px}
+:focus-visible{outline:2px solid var(--acc);outline-offset:2px}
+
+.err{color:var(--acc);font-size:13px;min-height:19px}
+.hide{display:none!important}
+.row{display:flex;gap:10px;align-items:center;flex-wrap:wrap}
+.hint{color:var(--fg-3);font-size:12.5px}
+.field-label{font-size:12.5px;color:var(--fg-3);margin-bottom:9px}
+.link{background:none;border:none;color:var(--fg-3);font-weight:500;font-size:12.5px;
+  padding:6px 0;text-decoration:underline;letter-spacing:0}
+.link:hover{background:none;color:var(--acc);box-shadow:none}
+
+/* 进门 */
+#gate{min-height:100dvh;display:grid;place-items:center;padding:24px}
+.gate-in{width:100%;max-width:344px;text-align:center}
+.gate-in img{width:78px;height:78px;margin-bottom:16px}
+.gate-in h1{font-size:21px;font-weight:700;letter-spacing:-.01em;margin:0 0 6px}
+.gate-sub{color:var(--fg-3);font-size:12.5px;margin-bottom:20px}
+.gate-in input{text-align:center;letter-spacing:.1em;margin-bottom:9px}
+.gate-in input.plain{letter-spacing:0}
+.gate-in button.go{width:100%}
+.keyout{background:var(--sf);border:1px solid var(--acc);border-radius:var(--r);
+  padding:14px;margin:12px 0}
+.keyout .k{font-family:var(--mono);font-size:19px;font-weight:700;color:var(--acc);
+  letter-spacing:.08em;word-break:break-all}
+.keyout .t{font-size:12px;color:var(--fg-3);margin-top:6px}
+
+/* 页眉 */
+header{padding:24px 0 0;margin-bottom:20px}
+.brandbar{display:flex;align-items:center;gap:12px;flex-wrap:wrap}
+.brandbar img{width:38px;height:38px;flex:none}
+h1.title{font-size:21px;font-weight:700;letter-spacing:-.015em;margin:0;flex:1;min-width:0}
+.who{font-size:12.5px;color:var(--fg-3);white-space:nowrap}
+.who b{color:var(--fg-2);font-weight:600}
+#season{width:auto;font-size:12.5px;padding:6px 10px;color:var(--brand);background:var(--sf)}
+.tabs{display:flex;gap:8px;margin-top:18px;border-bottom:1px solid var(--line)}
+.tab{background:none;border:1px solid transparent;border-bottom:none;color:var(--fg-3);font-weight:500;
+  padding:8px 18px;border-radius:var(--r) var(--r) 0 0;margin-bottom:-1px;transition:all .2s}
+.tab:hover{background:none;border-color:transparent;color:var(--fg);box-shadow:none;transform:none}
+.tab.on{background:var(--sf);border-color:var(--line);color:var(--acc);border-bottom-color:var(--sf)}
+
+/* 设置区 */
+.setup{background:var(--sf);border:1px solid var(--line);border-radius:var(--r);
+  padding:15px 19px;margin-bottom:18px;box-shadow:var(--sh)}
+.chips{display:flex;flex-wrap:wrap;gap:7px}
+.chip{border:1px solid var(--line-2);background:var(--sf);color:var(--fg-2);border-radius:var(--r);
+  padding:5px 13px;font-size:13px;font-weight:500;transition:all .18s}
+.chip:hover{border-color:var(--acc);color:var(--acc);background:var(--sf);box-shadow:none;transform:none}
+.chip.on{background:var(--acc);border-color:var(--acc);color:var(--on-acc)}
+.chip.on:hover{background:var(--acc-h);border-color:var(--acc-h);color:var(--on-acc)}
+
+/* 工具栏 */
+.bar{position:sticky;top:0;z-index:20;padding:12px 0;margin-bottom:20px;
+  background:var(--bar);backdrop-filter:blur(12px);-webkit-backdrop-filter:blur(12px);
+  border-bottom:1px solid var(--line)}
+.bar input{flex:1;min-width:130px;width:auto}
+.tick{font-size:13px;color:var(--fg-3);white-space:nowrap}
+.tick b{color:var(--acc);font-size:17px;font-weight:700;font-family:var(--mono)}
+.closed{color:var(--warn);font-size:12.5px;font-weight:600}
+
+/* 番剧网格 */
+.grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(172px,1fr));gap:20px 16px}
+.card{position:relative;cursor:pointer;background:var(--sf);border:1px solid var(--line);
+  border-radius:var(--r);overflow:hidden;box-shadow:var(--sh);
+  transition:border-color .2s,box-shadow .28s var(--ease),transform .28s var(--ease);
+  -webkit-tap-highlight-color:transparent}
+.card:hover{transform:translateY(-4px);box-shadow:var(--sh-2)}
+.card.on{border-color:var(--acc);box-shadow:0 0 0 1px var(--acc),var(--sh)}
+/* 海报会被搬进聚焦面板，槽位自己撑住比例，搬走时网格不会塌一格 */
+.poster-slot{position:relative;aspect-ratio:2/3;background:var(--sf-2)}
+.poster{position:absolute;inset:0;overflow:hidden}
+.poster img{width:100%;height:100%;object-fit:cover;display:block;transition:transform .55s var(--ease)}
+.card:hover .poster img{transform:scale(1.05)}
+
+/* 角标既是选中标记，也是「不进详情直接提名」的开关 */
+.mark{position:absolute;top:7px;right:7px;width:30px;height:30px;border-radius:50%;z-index:2;
+  display:grid;place-items:center;padding:0;
+  background:var(--sf);border:1px solid var(--line-2);opacity:.82;
+  transition:background .2s,border-color .2s,opacity .2s,transform .12s var(--ease)}
+.mark:hover{background:var(--sf);border-color:var(--acc);opacity:1;box-shadow:var(--sh)}
+.mark::before,.mark::after{content:"";grid-area:1/1}
+.mark::before{width:10px;height:6px;border-left:2px solid var(--on-acc);border-bottom:2px solid var(--on-acc);
+  transform:rotate(-45deg) translate(1px,-1px);display:none}
+.mark::after{width:11px;height:11px;
+  background:linear-gradient(var(--fg-2),var(--fg-2)) center/2px 11px no-repeat,
+             linear-gradient(var(--fg-2),var(--fg-2)) center/11px 2px no-repeat}
+.card.on .mark{background:var(--acc);border-color:var(--acc);opacity:1}
+.card.on .mark::before{display:block}
+.card.on .mark::after{display:none}
+
+.info{padding:10px 11px 11px}
+/* 固定两行高度，否则一行标题和两行标题的卡片不等高，网格底部会参差 */
+.cn{font-size:13.5px;font-weight:600;line-height:1.4;height:2.8em;
+  display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
+.jp{font-size:11px;color:var(--fg-3);margin-top:3px;height:1.5em;
+  white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.air{font-family:var(--mono);font-size:10.5px;color:var(--fg-3);margin-top:6px}
+.picked{color:var(--acc);font-weight:600}
+
+/* 聚焦面板：点一张卡片，整页让位给这一部 */
+#focus{position:fixed;inset:0;z-index:60;display:grid;place-items:center;padding:26px}
+.fx-back{position:absolute;inset:0;background:var(--ov);
+  backdrop-filter:blur(6px);-webkit-backdrop-filter:blur(6px)}
+.fx-card{position:relative;width:100%;max-width:880px;max-height:calc(100dvh - 52px);
+  display:grid;grid-template-columns:264px 1fr;gap:26px;padding:26px}
+.fx-sheet{position:absolute;inset:0;background:var(--sf);border:1px solid var(--line);
+  border-radius:var(--r);box-shadow:var(--sh-2)}
+.fx-poster{position:relative;z-index:1;width:100%;aspect-ratio:2/3;border-radius:var(--r);
+  overflow:hidden;background:var(--sf-2);align-self:start}
+.fx-poster img{width:100%;height:100%;object-fit:cover;display:block}
+/* 飞行替身：body 的直接子元素，不受 .card / #fxPoster 那两层 overflow:hidden 裁剪。
+   网格海报和面板海报都是 2:3，所以等比 scale 就够，全程只动 transform */
+.flyer{position:fixed;left:0;top:0;z-index:80;transform-origin:0 0;pointer-events:none;
+  border-radius:var(--r);overflow:hidden;box-shadow:var(--sh-2)}
+.flyer img{width:100%;height:100%;object-fit:cover;display:block}
+.card.flying .poster{visibility:hidden}
+.fx-body{position:relative;z-index:1;min-width:0;overflow-y:auto;padding-right:4px;
+  display:flex;flex-direction:column}
+.fx-cn{font-size:22px;font-weight:700;line-height:1.35;letter-spacing:-.015em;margin:0 46px 0 0}
+.fx-jp{font-size:12.5px;color:var(--fg-3);margin-top:4px;line-height:1.5}
+.fx-meta{font-size:12px;color:var(--fg-3);margin-top:9px;display:flex;flex-wrap:wrap;gap:4px 12px}
+.fx-meta b{color:var(--acc);font-weight:700}
+.fx-staff{margin-top:15px;padding-top:13px;border-top:1px solid var(--line);
+  display:grid;grid-template-columns:auto 1fr;gap:5px 12px;font-size:13px}
+.fx-staff .k{color:var(--fg-3);font-size:12px;white-space:nowrap;padding-top:2px}
+.fx-staff .v{color:var(--fg-2);min-width:0;overflow-wrap:anywhere}
+.fx-sum{font-size:13.5px;color:var(--fg-2);line-height:1.75;margin:14px 0 0;white-space:pre-wrap}
+.fx-tags{display:flex;flex-wrap:wrap;gap:6px;margin-top:13px}
+.fx-tag{font-size:11.5px;padding:2px 9px;border-radius:var(--r);border:1px solid var(--line);
+  color:var(--fg-3);background:var(--sf-2)}
+.fx-act{margin-top:17px;padding-top:15px;border-top:1px solid var(--line)}
+.fx-act .field-label{margin:14px 0 8px}
+.fx-act textarea{margin-top:9px;font-size:13px;min-height:52px}
+.fx-close{position:absolute;top:20px;right:22px;z-index:2;width:34px;height:34px;padding:0;
+  display:grid;place-items:center}
+.fx-close::before,.fx-close::after{content:"";grid-area:1/1;width:13px;height:2px;background:var(--fg-2)}
+.fx-close::before{transform:rotate(45deg)}
+.fx-close::after{transform:rotate(-45deg)}
+.fx-close:hover::before,.fx-close:hover::after{background:var(--acc)}
+.fx-nav{position:absolute;left:26px;bottom:-46px;z-index:1;display:flex;gap:8px}
+.fx-nav button{background:var(--sf);border-color:var(--line-2);color:var(--fg-2)}
+
+/* 汇总 */
+.stats{display:flex;gap:14px;flex-wrap:wrap;margin-bottom:18px}
+.stat{background:var(--sf);border:1px solid var(--line);border-radius:var(--r);
+  padding:14px 20px;box-shadow:var(--sh);flex:1;min-width:118px}
+.stat .n{font-family:var(--mono);font-size:31px;font-weight:700;line-height:1.1;letter-spacing:-.02em}
+.stat .n.hl{color:var(--acc)}
+.stat .k{font-size:12px;color:var(--fg-3);margin-top:3px}
+
+.item{background:var(--sf);border:1px solid var(--line);border-radius:var(--r);
+  padding:14px 17px;margin-bottom:10px;cursor:pointer;box-shadow:var(--sh);
+  transition:border-color .2s,box-shadow .25s}
+.item:hover{border-color:var(--line-2);box-shadow:var(--sh-2)}
+.item.ready{border-left:3px solid var(--ok)}
+/* 重排期间条目浮起，交错而过时有层次，不至于看着像糊在一起 */
+.rank.shuffling .item{box-shadow:var(--sh-2)}
+.item-hd{display:flex;gap:14px;align-items:baseline}
+.rk{font-family:var(--mono);font-size:17px;font-weight:700;color:var(--fg-3);
+  min-width:26px;text-align:right;flex:none}
+.item.top .rk{color:var(--acc)}
+.item-nm{flex:1;font-size:15px;font-weight:600;min-width:0}
+.item-jp{font-size:11px;color:var(--fg-3);font-weight:400;margin-top:2px;
+  white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.item-ct{font-family:var(--mono);font-size:12.5px;color:var(--fg-3);white-space:nowrap;flex:none}
+.badge{font-size:12.5px;font-weight:600;white-space:nowrap;flex:none}
+.badge.y{color:var(--ok)}
+.badge.n{color:var(--warn)}
+
+.slots{display:flex;flex-wrap:wrap;gap:6px;margin:10px 0 0 40px}
+.sl{font-size:11.5px;padding:2px 9px;border-radius:var(--r);border:1px solid var(--line);
+  color:var(--fg-3);background:var(--sf-2)}
+.sl.has{background:var(--ok-bg);border-color:var(--ok-bd);color:var(--ok);font-weight:600}
+.sl.miss{background:var(--warn-bg);border-color:var(--warn-bd);color:var(--warn)}
+.sl b{margin-left:3px;font-family:var(--mono)}
+
+.detail{overflow:hidden;height:0}
+.detail-in{margin:12px 0 2px 40px;padding-left:14px;border-left:2px solid var(--line)}
+.drow{display:flex;gap:12px;font-size:13px;margin:5px 0}
+.drow .dk{font-size:12px;color:var(--fg-3);min-width:52px;padding-top:2px;flex:none}
+.why{margin-top:11px;padding-top:10px;border-top:1px dashed var(--line)}
+.why p{margin:5px 0;font-size:13px;color:var(--fg-2)}
+.why b{color:var(--acc);font-weight:600;margin-right:5px}
+
+.roster{color:var(--fg-3);font-size:12.5px;margin-top:20px;padding-top:15px;
+  border-top:1px solid var(--line);line-height:1.9}
+.roster span{color:var(--fg-2);font-weight:600}
+.empty{color:var(--fg-3);padding:40px 0;text-align:center;font-size:13.5px}
+footer{color:var(--fg-3);font-size:12px;margin-top:44px;padding:18px 0 36px;border-top:1px solid var(--line)}
+
+@media (max-width:760px){
+  .wrap{padding:0 15px}
+  header{padding-top:18px}
+  h1.title{font-size:17px;flex-basis:100%;order:-1}
+  .brandbar img{width:32px;height:32px}
+  .grid{grid-template-columns:repeat(auto-fill,minmax(136px,1fr));gap:14px 11px}
+  .stat{padding:12px 14px}
+  .stat .n{font-size:25px}
+  .slots,.detail-in{margin-left:0}
+  .tabs{gap:4px}
+  .tab{padding:8px 14px}
+  .item-hd{flex-wrap:wrap;gap:8px 12px}
+  .item-nm{flex-basis:calc(100% - 40px)}
+  .mark{width:34px;height:34px}
+  /* 手机上聚焦面板铺满整屏，海报缩到标题旁边，正文占主要面积 */
+  #focus{padding:0;place-items:stretch}
+  .fx-card{max-width:none;max-height:none;height:100dvh;padding:18px 15px 15px;
+    grid-template-columns:1fr;grid-template-rows:auto 1fr;gap:0;overflow:hidden}
+  .fx-sheet{border-radius:0;border:none}
+  .fx-poster{width:108px;aspect-ratio:2/3;margin-bottom:14px}
+  .fx-cn{font-size:19px;margin-right:40px}
+  .fx-close{top:14px;right:13px}
+  .fx-nav{position:static;margin-top:14px;justify-content:space-between}
+  .fx-nav button{flex:1}
+  .fx-body{padding-bottom:8px}
+  /* 手机上简介很长，提名按钮排在后面就被挤到屏幕外了。
+     调成「标题 -> 提名 -> 详情」，一进来就能决定做不做，想细看再往下翻 */
+  .fx-act{order:1;margin-top:14px;padding-top:13px}
+  .fx-staff,.fx-sum,.fx-tags{order:2}
+  .fx-staff{margin-top:14px}
+  #fxPick{width:100%}
+}
+@media (prefers-reduced-motion:reduce){
+  *,*::before,*::after{animation-duration:.01ms!important;transition-duration:.01ms!important}
+}
+</style>
+</head>
+<body>
+
+<section id="gate">
+  <div class="gate-in">
+    <img src="icon.png" alt="拨雪寻春" width="78" height="78">
+    <h1>拨雪寻春番剧译制投票</h1>
+
+    <div id="paneLogin">
+      <div class="gate-sub">用你的专属密钥进入</div>
+      <input id="key" placeholder="XXXX-XXXX-XXXX" autocomplete="off" spellcheck="false" aria-label="你的密钥">
+      <button class="go" id="enter">进入</button>
+      <div class="gate-sub" style="margin:14px 0 0">还没有密钥？找管理员要一条注册链接</div>
+    </div>
+
+    <div id="paneReg" class="hide">
+      <div class="gate-sub">填个名字，这条链接就绑定成你的了</div>
+      <input id="rname" class="plain" placeholder="你的名字" maxlength="32" autocomplete="off" aria-label="你的名字">
+      <button class="go" id="reg">注册</button>
+      <div id="keyBox" class="keyout hide">
+        <div class="k mono" id="keyVal"></div>
+        <div class="t" id="keyTip"></div>
+      </div>
+      <button class="link" id="toLogin">已经有密钥了，去登录</button>
+    </div>
+
+    <div class="err" id="gateErr" role="alert"></div>
+  </div>
+</section>
+
+<main id="app" class="hide">
+  <div class="wrap">
+    <header>
+      <div class="brandbar">
+        <img src="icon.png" alt="" width="38" height="38">
+        <h1 class="title" id="title">拨雪寻春番剧译制投票</h1>
+        <select id="season" aria-label="选择季度"></select>
+        <button class="ghost mini" id="theme">深色</button>
+        <span class="who">你好，<b id="meName"></b></span>
+        <button class="link" id="mylink">复制登录链接</button>
+        <button class="link" id="logout">退出</button>
+      </div>
+      <nav class="tabs">
+        <button class="tab on" id="tabVote">提名</button>
+        <button class="tab" id="tabRes">汇总</button>
+      </nav>
+    </header>
+
+    <section id="voteView">
+      <div class="setup">
+        <div class="field-label">我能担的岗位</div>
+        <div class="chips" id="myRoles"></div>
+      </div>
+
+      <div class="bar"><div class="row">
+        <input id="q" placeholder="搜索番剧名 / 标签" aria-label="搜索">
+        <span class="tick">已选 <b id="n">0</b></span>
+        <button class="ghost" id="onlyPicked">只看已选</button>
+        <button id="submit">提交</button>
+        <span class="closed hide" id="closedTip">本季已截止</span>
+      </div><div class="err" id="voteErr" role="alert"></div></div>
+
+      <div class="grid" id="grid"></div>
+    </section>
+
+    <section id="resView" class="hide">
+      <div class="bar"><div class="row">
+        <button class="ghost active" id="sortReady">按人手齐整</button>
+        <button class="ghost" id="sortVotes">按提名数</button>
+        <span style="flex:1"></span>
+        <button class="ghost" id="refresh">刷新</button>
+        <button class="ghost" id="csv">导出 CSV</button>
+      </div><div class="err" id="resErr" role="alert"></div></div>
+
+      <div class="stats">
+        <div class="stat"><div class="n mono" id="nv">0</div><div class="k">已提名人数</div></div>
+        <div class="stat"><div class="n mono hl" id="nr">0</div><div class="k">人手齐的番</div></div>
+        <div class="stat"><div class="n mono" id="nt">0</div><div class="k">被提名番剧</div></div>
+      </div>
+
+      <div class="rank" id="rank"></div>
+      <div class="roster" id="roster"></div>
+    </section>
+
+    <footer>番剧数据来自 <a href="https://bgm.tv" target="_blank" rel="noopener">Bangumi</a>，封面版权归原作者所有。</footer>
+  </div>
+</main>
+
+<section id="focus" class="hide" role="dialog" aria-modal="true" aria-label="番剧详情">
+  <div class="fx-back"></div>
+  <div class="fx-card">
+    <div class="fx-sheet"></div>
+    <button class="ghost fx-close" id="fxClose" aria-label="关闭详情"></button>
+    <div class="fx-poster" id="fxPoster"><img id="fxImg" alt=""></div>
+    <div class="fx-body">
+      <h2 class="fx-cn" id="fxCn"></h2>
+      <div class="fx-jp" id="fxJp"></div>
+      <div class="fx-meta mono" id="fxMeta"></div>
+      <div class="fx-staff" id="fxStaff"></div>
+      <p class="fx-sum" id="fxSum"></p>
+      <div class="fx-tags" id="fxTags"></div>
+      <div class="fx-act">
+        <button id="fxPick"></button>
+        <div class="field-label">我在这部担</div>
+        <div class="chips" id="fxRoles"></div>
+        <textarea id="fxWhy" placeholder="理由 / 备注，选填" maxlength="300" aria-label="理由"></textarea>
+      </div>
+    </div>
+    <nav class="fx-nav">
+      <button class="ghost mini" id="fxPrev">上一部</button>
+      <button class="ghost mini" id="fxNext">下一部</button>
+    </nav>
+  </div>
+</section>
+
+<script src="vendor/gsap.min.js"></script>
+<script src="vendor/Flip.min.js"></script>
+<script>
+gsap.registerPlugin(Flip);
+const REDUCE = matchMedia('(prefers-reduced-motion: reduce)').matches;
+const D = (s) => REDUCE ? 0 : s;
+const $ = (s) => document.querySelector(s);
+const esc = (s) => String(s ?? '').replace(/[&<>"]/g, (c) => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+
+/* 主题：默认跟随系统，手动切过一次之后就记住手动的那个 */
+const THEME = {
+  set(t, save) {
+    document.documentElement.dataset.theme = t;
+    $('#theme').textContent = t === 'dark' ? '浅色' : '深色';
+    if (save) localStorage.setItem('theme', t);
+  },
+  init() {
+    const saved = localStorage.getItem('theme');
+    const sys = matchMedia('(prefers-color-scheme: dark)');
+    this.set(saved || (sys.matches ? 'dark' : 'light'), false);
+    // 没手动选过的人，跟着系统一起变
+    sys.addEventListener('change', (e) => { if (!localStorage.getItem('theme')) this.set(e.matches ? 'dark' : 'light', false); });
+  },
+};
+THEME.init();
+$('#theme').onclick = () => THEME.set(document.documentElement.dataset.theme === 'dark' ? 'light' : 'dark', true);
+
+let KEY = localStorage.getItem('vk') || '';
+let ME = '';
+let SEASON = '';
+let CLOSED = false;
+let CFG = { roles: [], required: [] };
+let ANIME = [];
+let ROWS = [];                   // 当前筛选后正在展示的番，聚焦面板的上/下一部按它走
+const BY = new Map();
+const PICK = new Map();
+let MYROLES = new Set();
+let onlyPicked = false;
+let sortMode = 'ready';
+let FX = null;                   // 正在聚焦的番剧 id
+
+const api = async (path, body) => {
+  const r = await fetch('/api' + path, {
+    method: 'POST', headers: { 'content-type': 'application/json' },
+    body: JSON.stringify(Object.assign({}, body, { key: KEY, season: SEASON })),
+  });
+  const d = await r.json().catch(() => ({ error: 'HTTP ' + r.status }));
+  if (!r.ok && !d.conflict) throw new Error(d.error || 'HTTP ' + r.status);
+  return d;
+};
+
+/* 注册。管理员发的一次性链接形如 站点/?j=<注册码>，点进来只要填个名字。
+   全组共用一个口令的做法去掉了：那种模式换个名字就能再投一次，而且口令转发出组就锁不住 */
+const INVITE = (location.search.match(/[?&]j=([0-9A-Za-z-]+)/) || [])[1] || '';
+$('#toLogin').onclick = () => { $('#paneReg').classList.add('hide'); $('#paneLogin').classList.remove('hide'); $('#gateErr').textContent = ''; };
+$('#reg').onclick = async () => {
+  const btn = $('#reg');
+  $('#gateErr').textContent = '';
+  btn.disabled = true;
+  try {
+    const r = await fetch('/api/register', {
+      method: 'POST', headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ token: INVITE, name: $('#rname').value.trim() }),
+    });
+    const d = await r.json();
+    if (!r.ok) throw new Error(d.error || 'HTTP ' + r.status);
+    $('#keyVal').textContent = d.key;
+    $('#keyTip').textContent = '这枚密钥就是你的身份，浏览器已经记住了。换设备时用它登录，别发到群里。';
+    $('#keyBox').classList.remove('hide');
+    $('#key').value = d.key;
+    // 注册码用掉了就从地址栏抹掉，否则刷新一下又回到注册页，还报「已经被用掉了」
+    history.replaceState(null, '', location.pathname);
+    if (!REDUCE) gsap.from('#keyBox', { opacity: 0, y: 10, duration: .45, ease: 'power3.out' });
+    setTimeout(() => enter(d.key), 1800);
+  } catch (e) {
+    $('#gateErr').textContent = e.message;
+  } finally {
+    btn.disabled = false;
+  }
+};
+
+/* 可收藏的登录链接。密钥放在 # 后面：片段不会发给服务器、不会进 Referer，
+   读到就立刻从地址栏抹掉，免得留在历史记录里 */
+const linkKey = (location.hash.match(/[#&]k=([0-9A-Za-z-]+)/) || [])[1] || '';
+if (linkKey) history.replaceState(null, '', location.pathname);
+$('#mylink').onclick = async () => {
+  const url = location.origin + '/#k=' + KEY;
+  try { await navigator.clipboard.writeText(url); $('#mylink').textContent = '已复制，别转发'; }
+  catch (e) { prompt('复制这条链接自己收藏，别转发：', url); }
+  setTimeout(() => { $('#mylink').textContent = '复制登录链接'; }, 2200);
+};
+
+/* 进门。动效理由：状态转换，密钥通过是一道门 */
+async function enter(key) {
+  const btn = $('#enter');
+  $('#gateErr').textContent = '';
+  btn.disabled = true;
+  btn.textContent = '核对中';
+  try {
+    KEY = key;
+    const auth = await api('/auth', {});
+    ME = auth.name;
+    SEASON = localStorage.getItem('season') || auth.current;
+    if (!auth.seasons.some((s) => s.id === SEASON)) SEASON = auth.current;
+    $('#season').innerHTML = auth.seasons
+      .map((s) => '<option value="' + esc(s.id) + '">' + esc(s.label) + (s.status === 'open' ? '' : '（已截止）') + '</option>').join('');
+    $('#season').value = SEASON;
+    $('#meName').textContent = ME;
+    localStorage.setItem('vk', key);
+    await load();
+    gsap.timeline()
+      .to('#gate', { opacity: 0, y: -18, duration: D(.4), ease: 'power2.in',
+                     onComplete: () => $('#gate').classList.add('hide') })
+      .add(() => $('#app').classList.remove('hide'))
+      .from('header > *', { opacity: 0, y: 14, duration: D(.55), stagger: D(.07), ease: 'power3.out' })
+      .from('.setup', { opacity: 0, y: 14, duration: D(.5), ease: 'power3.out' }, '-=0.3')
+      .add(() => revealCards(), '-=0.3');
+  } catch (e) {
+    KEY = '';
+    localStorage.removeItem('vk');
+    $('#gateErr').textContent = e.message;
+    if (!REDUCE) gsap.fromTo('.gate-in', { x: -8 }, { x: 0, duration: .5, ease: 'elastic.out(1,.35)' });
+  } finally {
+    btn.disabled = false;
+    btn.textContent = '进入';
+  }
+}
+$('#enter').onclick = () => enter($('#key').value.trim());
+$('#key').onkeydown = (e) => { if (e.key === 'Enter') $('#enter').click(); };
+$('#rname').onkeydown = (e) => { if (e.key === 'Enter') $('#reg').click(); };
+$('#logout').onclick = () => { localStorage.removeItem('vk'); location.reload(); };
+
+/* 载入当前季度 */
+async function load() {
+  const [cfg, anime] = await Promise.all([
+    fetch('config.json').then((r) => r.json()),
+    fetch('season/' + SEASON + '.json').then((r) => r.json()),
+  ]);
+  CFG = cfg;
+  ANIME = anime.list;
+  BY.clear();
+  ANIME.forEach((a) => BY.set(a.id, a));
+  document.title = cfg.title;
+  $('#title').textContent = cfg.title;
+
+  try { MYROLES = new Set(JSON.parse(localStorage.getItem('myroles') || '[]').filter((r) => cfg.roles.includes(r))); } catch (e) {}
+  PICK.clear();
+  try {
+    JSON.parse(localStorage.getItem('draft:' + SEASON) || '[]').forEach(([id, v]) => {
+      if (BY.has(id)) PICK.set(id, { roles: new Set((v.roles || []).filter((r) => cfg.roles.includes(r))), reason: v.reason || '' });
+    });
+  } catch (e) {}
+
+  renderMyRoles();
+  render();
+  hydrate();
+}
+
+/* 密钥即身份，所以换台机器也能把上次提交的票拉回来接着改 */
+async function hydrate() {
+  try {
+    const d = LAST = await api('/results', {});
+    CLOSED = !!d.closed;
+    $('#closedTip').classList.toggle('hide', !CLOSED);
+    $('#submit').disabled = CLOSED;
+    if (!PICK.size && d.mine) {
+      d.mine.forEach((p) => {
+        if (BY.has(p.id)) PICK.set(p.id, { roles: new Set((p.roles || []).filter((r) => CFG.roles.includes(r))), reason: p.reason || '' });
+      });
+      if (PICK.size) { saveDraft(); render(); }
+    }
+  } catch (e) { /* 汇总拉不动不该挡住提名 */ }
+}
+
+$('#season').onchange = async () => {
+  SEASON = $('#season').value;
+  localStorage.setItem('season', SEASON);
+  $('#voteErr').textContent = '';
+  await load();
+  revealCards();
+  if (!$('#resView').classList.contains('hide')) loadRes(true);
+};
+
+function renderMyRoles() {
+  $('#myRoles').innerHTML = CFG.roles
+    .map((r) => '<button class="chip ' + (MYROLES.has(r) ? 'on' : '') + '" data-r="' + esc(r) + '">' + esc(r) + '</button>').join('');
+}
+$('#myRoles').addEventListener('click', (e) => {
+  const c = e.target.closest('.chip');
+  if (!c) return;
+  const r = c.dataset.r;
+  if (MYROLES.has(r)) MYROLES.delete(r); else MYROLES.add(r);
+  localStorage.setItem('myroles', JSON.stringify([...MYROLES]));
+  renderMyRoles();
+  const fresh = $('#myRoles [data-r="' + CSS.escape(r) + '"]');
+  if (fresh && !REDUCE) gsap.fromTo(fresh, { scale: .86 }, { scale: 1, duration: .42, ease: 'back.out(2.4)' });
+});
+
+/* 番剧网格 */
+function render() {
+  if (FX !== null) closeFocus(true);        // 海报节点被搬进面板了，重建网格前必须先归位
+  const kw = $('#q').value.trim().toLowerCase();
+  ROWS = ANIME.filter((a) => {
+    if (onlyPicked && !PICK.has(a.id)) return false;
+    if (!kw) return true;
+    return (a.name_cn + ' ' + a.name + ' ' + a.tags.join(' ')).toLowerCase().includes(kw);
+  });
+  $('#grid').innerHTML = ROWS.map((a) => {
+    const p = PICK.get(a.id);
+    const roles = p && p.roles.size ? [...p.roles].join(' / ') : '';
+    return '<article class="card ' + (p ? 'on' : '') + '" data-id="' + a.id + '">' +
+      '<div class="poster-slot"><div class="poster">' +
+        '<img loading="lazy" src="' + esc(a.cover) + '" alt="' + esc(a.name_cn) + ' 封面">' +
+        '<button class="mark" aria-label="提名 ' + esc(a.name_cn) + '"></button>' +
+      '</div></div>' +
+      '<div class="info">' +
+        '<div class="cn">' + esc(a.name_cn) + '</div>' +
+        // bgm 上没中文名的番，name_cn 会回落成原名，别把同一行字印两遍
+        '<div class="jp">' + (a.name === a.name_cn ? '' : esc(a.name)) + '</div>' +
+        '<div class="air mono' + (roles ? ' picked' : '') + '">' + (roles || esc(a.date) + ' · ' + esc(a.platform)) + '</div>' +
+      '</div>' +
+    '</article>';
+  }).join('') || '<div class="empty">没有匹配的番剧</div>';
+  $('#n').textContent = PICK.size;
+  revealCards();
+}
+
+/* 动效理由：层次。整屏番剧一次砸出来是一堵墙，进视口才逐批浮起。
+   用 IntersectionObserver 而不是滚动监听，不占主线程 */
+let io = null;
+function revealCards() {
+  if (io) io.disconnect();
+  const cards = [...document.querySelectorAll('.card')];
+  if (REDUCE) { gsap.set(cards, { opacity: 1, y: 0 }); return; }
+  gsap.set(cards, { opacity: 0, y: 22 });
+  let batch = [], timer = null;
+  io = new IntersectionObserver((entries) => {
+    entries.forEach((en) => {
+      if (!en.isIntersecting) return;
+      batch.push(en.target);
+      io.unobserve(en.target);
+      clearTimeout(timer);
+      timer = setTimeout(() => {
+        gsap.to(batch, { opacity: 1, y: 0, duration: .58, stagger: .04, ease: 'power3.out' });
+        batch = [];
+      }, 40);
+    });
+  }, { rootMargin: '80px 0px', threshold: .05 });
+  cards.forEach((c) => io.observe(c));
+}
+
+const saveDraft = () =>
+  localStorage.setItem('draft:' + SEASON, JSON.stringify([...PICK].map(([id, v]) => [id, { roles: [...v.roles], reason: v.reason }])));
+
+/* 提名开关。角标点一下直接提名，不必进详情 */
+function togglePick(id) {
+  const card = document.querySelector('.card[data-id="' + id + '"]');
+  if (PICK.has(id)) PICK.delete(id);
+  else PICK.set(id, { roles: new Set(MYROLES), reason: '' });
+  const on = PICK.has(id);
+  if (card) {
+    card.classList.toggle('on', on);
+    const p = PICK.get(id);
+    const roles = p && p.roles.size ? [...p.roles].join(' / ') : '';
+    const air = card.querySelector('.air');
+    const a = BY.get(id);
+    air.textContent = roles || (a.date + ' · ' + a.platform);
+    air.classList.toggle('picked', !!roles);
+    // 动效理由：反馈。角标弹一下，确认这一下点到了
+    if (!REDUCE) gsap.fromTo(card.querySelector('.mark'), { scale: .7 }, { scale: 1, duration: .45, ease: 'back.out(3)' });
+  }
+  if (!REDUCE) gsap.fromTo('#n', { scale: 1.3 }, { scale: 1, duration: .42, ease: 'power2.out' });
+  $('#n').textContent = PICK.size;
+  saveDraft();
+  if (FX === id) paintFocusAct(BY.get(id));
+  return on;
+}
+
+$('#grid').addEventListener('click', (e) => {
+  const card = e.target.closest('.card');
+  if (!card) return;
+  const id = +card.dataset.id;
+  if (e.target.closest('.mark')) { togglePick(id); return; }
+  openFocus(id);
+});
+let qt = null;
+$('#q').oninput = () => { clearTimeout(qt); qt = setTimeout(render, 130); };
+$('#onlyPicked').onclick = (e) => {
+  onlyPicked = !onlyPicked;
+  e.target.classList.toggle('active', onlyPicked);
+  render();
+};
+
+/* 聚焦面板。
+   动效理由：连续性。点下去的那张海报要「长」成主面板，视线才不断。
+   实现上不搬运卡片里的真实海报节点：它两头的祖先（网格侧 .card、面板侧 #fxPoster）
+   都是 overflow:hidden，节点飞到半路会被裁掉，观感就是「原地消失、那边出现」，
+   卡片被视口切一半时更糟。改成起一层 position:fixed 的替身挂在 body 下，
+   零裁剪祖先，落地即销毁。两端海报都是 2:3，所以等比 scale 就够，全程只动 transform。 */
+let flyer = null;
+let sbW = 0;
+
+// 锁背景滚动时要补回滚动条的宽度，否则页面横向一跳，海报的落点就对不上了
+function lockScroll(on) {
+  if (on) {
+    sbW = innerWidth - document.documentElement.clientWidth;
+    document.body.style.paddingRight = sbW > 0 ? sbW + 'px' : '';
+    document.body.classList.add('locked');
+  } else {
+    document.body.classList.remove('locked');
+    document.body.style.paddingRight = '';
+  }
+}
+
+// 返回 true 表示替身真的飞了；卡片不在视口里就别硬飞，直接落位更干净
+function fly(from, to, src, dur, onLand) {
+  if (flyer) { flyer.remove(); flyer = null; }
+  const usable = (r) => r && r.width > 1 && r.bottom > 0 && r.top < innerHeight;
+  if (REDUCE || !usable(from) || !usable(to) || !src) { onLand(); return false; }
+  const el = document.createElement('div');
+  el.className = 'flyer';
+  el.innerHTML = '<img src="' + esc(src) + '" alt="">';
+  document.body.appendChild(el);
+  flyer = el;
+  gsap.set(el, { width: from.width, height: from.height, x: from.left, y: from.top });
+  gsap.to(el, {
+    x: to.left, y: to.top, scale: to.width / from.width,
+    duration: dur, ease: 'power3.inOut',
+    onComplete() { el.remove(); if (flyer === el) flyer = null; onLand(); },
+  });
+  return true;
+}
+
+const posterRect = (id) => {
+  const card = document.querySelector('.card[data-id="' + id + '"]');
+  return card ? card.querySelector('.poster').getBoundingClientRect() : null;
+};
+const CHROME = ['.fx-back', '.fx-sheet', '.fx-body', '.fx-nav', '#fxClose'];
+
+function fillFocus(a) {
+  const p = PICK.get(a.id);
+  $('#fxImg').src = a.cover;
+  $('#fxImg').alt = a.name_cn + ' 封面';
+  $('#fxCn').textContent = a.name_cn;
+  $('#fxJp').textContent = a.name === a.name_cn ? '' : a.name;
+  $('#fxMeta').innerHTML = [
+    esc(a.date), esc(a.platform),
+    a.eps ? a.eps + ' 话' : '',
+    a.score ? '<b>' + a.score + '</b> 分' : '',
+    '<a href="' + esc(a.url) + '" target="_blank" rel="noopener">bgm 条目</a>',
+  ].filter(Boolean).map((s) => '<span>' + s + '</span>').join('');
+  $('#fxStaff').innerHTML = (a.staff || [])
+    .map(([k, v]) => '<span class="k">' + esc(k) + '</span><span class="v">' + esc(v) + '</span>').join('')
+    || '<span class="k">staff</span><span class="v">bgm 上暂时没有制作名单</span>';
+  $('#fxSum').textContent = a.summary || '这部番在 bgm 上还没有简介。';
+  $('#fxTags').innerHTML = (a.tags || []).map((t) => '<span class="fx-tag">' + esc(t) + '</span>').join('');
+  $('#fxWhy').value = p ? p.reason : '';
+  paintFocusAct(a);
+}
+
+function paintFocusAct(a) {
+  const p = PICK.get(a.id);
+  const btn = $('#fxPick');
+  btn.textContent = p ? '已提名，点此取消' : '提名这部';
+  btn.className = p ? 'ghost active' : '';
+  $('#fxRoles').innerHTML = CFG.roles
+    .map((r) => '<button class="chip ' + (p && p.roles.has(r) ? 'on' : '') + '" data-r="' + esc(r) + '"' +
+      (p ? '' : ' disabled') + '>' + esc(r) + '</button>').join('');
+  $('#fxWhy').disabled = !p;
+}
+
+function openFocus(id) {
+  const a = BY.get(id);
+  if (!a || FX !== null) return;
+  FX = id;
+  fillFocus(a);
+  lockScroll(true);                          // 先锁再量，量到的落点才是最终布局里的落点
+  $('#focus').classList.remove('hide');
+
+  const card = document.querySelector('.card[data-id="' + id + '"]');
+  const from = posterRect(id);
+  const to = $('#fxPoster').getBoundingClientRect();
+  if (card) card.classList.add('flying');    // 替身在飞的时候，原位那张先藏起来
+  gsap.set('#fxImg', { opacity: 0 });
+  const flew = fly(from, to, a.cover, .5, () => {
+    gsap.to('#fxImg', { opacity: 1, duration: D(.16) });
+    if (card) card.classList.remove('flying');
+  });
+
+  if (REDUCE) return;
+  gsap.fromTo('.fx-back', { opacity: 0 }, { opacity: 1, duration: .3 });
+  gsap.fromTo('.fx-sheet', { opacity: 0, scale: .97 }, { opacity: 1, scale: 1, duration: .38, ease: 'power3.out' });
+  gsap.fromTo('.fx-body > *', { opacity: 0, y: 14 },
+    { opacity: 1, y: 0, duration: .45, stagger: .05, ease: 'power3.out', delay: flew ? .16 : .06 });
+  gsap.fromTo('.fx-nav,.fx-close', { opacity: 0 }, { opacity: 1, duration: .3, delay: .22 });
+}
+
+function closeFocus(instant) {
+  if (FX === null) return;
+  const id = FX;
+  FX = null;
+  const a = BY.get(id);
+  const card = document.querySelector('.card[data-id="' + id + '"]');
+  const done = () => {
+    $('#focus').classList.add('hide');
+    lockScroll(false);
+    if (card) card.classList.remove('flying');
+    gsap.set(CHROME, { clearProps: 'opacity' });
+    gsap.set('#fxImg', { clearProps: 'opacity' });
+  };
+  if (instant || REDUCE) {
+    if (flyer) { flyer.remove(); flyer = null; }
+    done();
+    return;
+  }
+
+  const from = $('#fxPoster').getBoundingClientRect();
+  const to = posterRect(id);
+  if (card) card.classList.add('flying');
+  gsap.set('#fxImg', { opacity: 0 });
+  const flew = fly(from, to, a && a.cover, .44, () => { if (card) card.classList.remove('flying'); });
+  // 面板整体一起淡出。之前只淡了背板，字和输入框会硬生生悬在原地等飞行跑完才被切掉
+  gsap.to(CHROME, { opacity: 0, duration: flew ? .3 : .22, ease: 'power2.in' });
+  gsap.delayedCall(flew ? .44 : .22, done);
+}
+
+// 「点别的卡片就聚焦别的卡片」：面板挡着网格，所以把翻页做进面板里
+function gotoFocus(dir) {
+  if (FX === null || !ROWS.length) return;
+  const i = ROWS.findIndex((a) => a.id === FX);
+  const next = ROWS[((i < 0 ? 0 : i) + dir + ROWS.length) % ROWS.length];
+  FX = next.id;
+  fillFocus(next);
+  if (!REDUCE) gsap.fromTo('.fx-poster,.fx-body',
+    { opacity: 0, x: 18 * dir }, { opacity: 1, x: 0, duration: .4, ease: 'power3.out' });
+}
+
+$('#fxClose').onclick = () => closeFocus();
+$('.fx-back').onclick = () => closeFocus();
+$('#fxPrev').onclick = () => gotoFocus(-1);
+$('#fxNext').onclick = () => gotoFocus(1);
+$('#fxPick').onclick = () => togglePick(FX);
+$('#fxRoles').addEventListener('click', (e) => {
+  const c = e.target.closest('.chip');
+  if (!c) return;
+  const p = PICK.get(FX);
+  if (!p) return;
+  const r = c.dataset.r;
+  if (p.roles.has(r)) p.roles.delete(r); else p.roles.add(r);
+  c.classList.toggle('on', p.roles.has(r));
+  if (!REDUCE) gsap.fromTo(c, { scale: .84 }, { scale: 1, duration: .4, ease: 'back.out(2.6)' });
+  saveDraft();
+  const card = document.querySelector('.card[data-id="' + FX + '"]');
+  if (card) {
+    const air = card.querySelector('.air');
+    const a = BY.get(FX);
+    const txt = p.roles.size ? [...p.roles].join(' / ') : '';
+    air.textContent = txt || (a.date + ' · ' + a.platform);
+    air.classList.toggle('picked', !!txt);
+  }
+});
+$('#fxWhy').oninput = () => { const p = PICK.get(FX); if (p) { p.reason = $('#fxWhy').value; saveDraft(); } };
+addEventListener('keydown', (e) => {
+  if (FX === null) return;
+  if (e.key === 'Escape') closeFocus();
+  if (e.key === 'ArrowLeft') gotoFocus(-1);
+  if (e.key === 'ArrowRight') gotoFocus(1);
+});
+
+/* 提交。名字来自密钥，这里不再问 */
+$('#submit').onclick = async () => {
+  const err = $('#voteErr');
+  const btn = $('#submit');
+  err.textContent = '';
+  if (!PICK.size) { err.textContent = '至少提名一部番'; return; }
+
+  const noRole = [...PICK].filter(([, v]) => !v.roles.size).length;
+  if (noRole && !confirm('有 ' + noRole + ' 部番你没勾岗位，只会计入意向、不计入人手。\n确定这样提交吗？')) return;
+
+  const picks = [...PICK].map(([id, v]) => ({ id, roles: [...v.roles], reason: v.reason }));
+  btn.disabled = true;
+  btn.textContent = '提交中';
+  try {
+    let d = await api('/vote', { picks });
+    if (d.conflict) {
+      if (!confirm('你在 ' + new Date(d.prevAt).toLocaleString() + ' 已经提交过了。\n确定用这次的结果覆盖吗？')) return;
+      d = await api('/vote', { picks, overwrite: true });
+    }
+    btn.textContent = d.replaced ? '已覆盖' : '已提交';
+    setTimeout(showRes, 460);
+    setTimeout(() => { btn.textContent = '提交'; }, 1400);
+  } catch (e) {
+    err.textContent = e.message;
+    btn.textContent = '提交';
+  } finally {
+    btn.disabled = CLOSED;
+  }
+};
+
+/* 汇总 */
+let LAST = null;
+const NODE = new Map();          // id -> DOM 节点。Flip 重排要求节点身份稳定，不能重建 HTML
+let flipping = false;            // 动画锁：连点两个排序按钮会让 Flip 互相打架
+const missingOf = (t) => CFG.required.filter((r) => !(t.roles[r] || []).length);
+
+function countTo(el, to) {
+  const from = +el.textContent || 0;
+  if (REDUCE || from === to) { el.textContent = to; return; }
+  gsap.fromTo({ v: from }, { v: from }, {
+    v: to, duration: .8, ease: 'power2.out',
+    onUpdate() { el.textContent = Math.round(this.targets()[0].v); },
+  });
+}
+
+function itemHTML(t, a) {
+  const ready = !t.miss.length;
+  const slots = CFG.roles.map((r) => {
+    const who = (t.roles[r] || []).length;
+    const cls = who ? 'has' : (CFG.required.includes(r) ? 'miss' : '');
+    return '<span class="sl ' + cls + '">' + esc(r) + '<b>' + who + '</b></span>';
+  }).join('');
+  const detail = CFG.roles.filter((r) => (t.roles[r] || []).length)
+    .map((r) => '<div class="drow"><span class="dk">' + esc(r) + '</span><span>' + t.roles[r].map(esc).join('、') + '</span></div>').join('')
+    || '<div class="drow"><span class="dk">暂无</span><span>还没有人认领岗位</span></div>';
+  const why = t.reasons.length
+    ? '<div class="why">' + t.reasons.map((r) => '<p><b>' + esc(r.name) + '</b>' + esc(r.reason) + '</p>').join('') + '</div>' : '';
+  return '<div class="item-hd">' +
+      '<span class="rk mono"></span>' +
+      '<span class="item-nm">' + esc(a.name_cn) +
+        (a.name && a.name !== a.name_cn ? '<div class="item-jp">' + esc(a.name) + '</div>' : '') + '</span>' +
+      '<span class="item-ct">' + t.votes + ' 人</span>' +
+      '<span class="badge ' + (ready ? 'y' : 'n') + '">' + (ready ? '人手齐了' : '缺 ' + t.miss.map(esc).join('/')) + '</span>' +
+    '</div>' +
+    '<div class="slots">' + slots + '</div>' +
+    '<div class="detail"><div class="detail-in">' + detail + why + '</div></div>';
+}
+
+const sorted = (rows) => [...rows].sort((a, b) =>
+  sortMode === 'votes'
+    ? b.votes - a.votes || a.miss.length - b.miss.length
+    : a.miss.length - b.miss.length || b.votes - a.votes);
+
+function paintRanks() {
+  [...$('#rank').children].forEach((el, i) => {
+    const rk = el.querySelector('.rk');
+    if (rk) rk.textContent = String(i + 1).padStart(2, '0');
+    el.classList.toggle('top', i < 3);
+  });
+}
+
+async function loadRes(firstPaint) {
+  $('#resErr').textContent = '';
+  try {
+    const d = LAST = await api('/results', {});
+    const rows = d.tally.map((t) => ({ ...t, miss: missingOf(t) }));
+    countTo($('#nv'), d.voters.length);
+    countTo($('#nr'), rows.filter((r) => !r.miss.length).length);
+    countTo($('#nt'), rows.length);
+
+    const rank = $('#rank');
+    rank.innerHTML = '';
+    NODE.clear();
+    if (!rows.length) { rank.innerHTML = '<div class="empty">还没有人提名</div>'; $('#roster').textContent = ''; return; }
+
+    sorted(rows).forEach((t) => {
+      const a = BY.get(t.id) || { name_cn: '#' + t.id, name: '' };
+      const el = document.createElement('div');
+      el.className = 'item' + (t.miss.length ? '' : ' ready');
+      el.dataset.id = t.id;
+      el.innerHTML = itemHTML(t, a);
+      rank.appendChild(el);
+      NODE.set(t.id, el);
+    });
+    paintRanks();
+
+    $('#roster').innerHTML = '已提名：' +
+      d.voters.map((v) => '<span>' + esc(v.name) + '</span> ' + v.count).join('，');
+
+    if (firstPaint && !REDUCE) {
+      // 动效理由：storytelling。先番剧落位，再岗位格子点亮。
+      // 「谁上榜」和「人手够不够」是两件事，分两拍读更清楚
+      gsap.from('.stat', { opacity: 0, y: 14, duration: .55, stagger: .08, ease: 'power3.out' });
+      gsap.from('.item', { opacity: 0, y: 18, duration: .5, stagger: .05, ease: 'power3.out', delay: .1 });
+      gsap.from('.sl', { opacity: 0, scale: .82, duration: .32, stagger: .006, ease: 'back.out(2)', delay: .42 });
+    }
+  } catch (e) {
+    $('#resErr').textContent = e.message;
+  }
+}
+
+/* 动效理由：状态转换。切排序时条目滑到新位置，看到的是「顺序变了」不是「数据被换了」。
+   absolute:true 让条目脱离文档流，交换时互不挤压，动画才干净；
+   但它同时会让父容器高度瞬间塌陷成 0，条目糊成一团、页面高度暴跳，
+   所以动画期间必须先把容器高度钉死，结束再放开。这两件事是一对，缺一不可。 */
+function resort() {
+  if (!LAST || flipping) return;
+  const rank = $('#rank');
+  if (!rank.children.length) return;
+  const lockH = rank.offsetHeight;
+  const state = Flip.getState('.item');
+  const rows = LAST.tally.map((t) => ({ ...t, miss: missingOf(t) }));
+  sorted(rows).forEach((t) => { const el = NODE.get(t.id); if (el) rank.appendChild(el); });
+  paintRanks();
+  if (REDUCE) return;
+  flipping = true;
+  gsap.set(rank, { height: lockH });          // 钉住高度，防 absolute 期间塌陷
+  rank.classList.add('shuffling');            // 交错而过的条目浮起来，才不像糊在一起
+  Flip.from(state, {
+    absolute: true, duration: .7, ease: 'power2.inOut', stagger: .02,
+    onComplete() {
+      gsap.set(rank, { clearProps: 'height' });
+      rank.classList.remove('shuffling');
+      flipping = false;
+    },
+  });
+}
+function setSort(mode, onBtn, offBtn) {
+  if (sortMode === mode || flipping) return;
+  sortMode = mode;
+  onBtn.classList.add('active');
+  offBtn.classList.remove('active');
+  resort();
+}
+$('#sortReady').onclick = () => setSort('ready', $('#sortReady'), $('#sortVotes'));
+$('#sortVotes').onclick = () => setSort('votes', $('#sortVotes'), $('#sortReady'));
+
+$('#rank').addEventListener('click', (e) => {
+  const it = e.target.closest('.item');
+  if (!it || flipping) return;
+  const dt = it.querySelector('.detail');
+  if (!dt) return;
+  const open = it.classList.toggle('open');
+  gsap.to(dt, { height: open ? 'auto' : 0, duration: D(.4), ease: 'power3.out' });
+});
+$('#refresh').onclick = () => loadRes(true);
+
+$('#csv').onclick = () => {
+  if (!LAST) return;
+  const q = (s) => '"' + String(s ?? '').replace(/"/g, '""') + '"';
+  const rows = [['番剧', '原名', 'bgm', '提名人数', '缺岗', ...CFG.roles, '理由']];
+  LAST.tally.map((t) => ({ ...t, miss: missingOf(t) }))
+    .sort((a, b) => a.miss.length - b.miss.length || b.votes - a.votes)
+    .forEach((t) => {
+      const a = BY.get(t.id) || {};
+      rows.push([a.name_cn || t.id, a.name || '', a.url || '', t.votes, t.miss.join('/') || '齐',
+        ...CFG.roles.map((r) => (t.roles[r] || []).join('、')),
+        t.reasons.map((r) => r.name + '：' + r.reason).join(' | ')]);
+    });
+  // BOM 开头，Excel 打开中文才不乱码
+  const blob = new Blob(['﻿' + rows.map((r) => r.map(q).join(',')).join('\r\n')], { type: 'text/csv;charset=utf-8' });
+  const a = Object.assign(document.createElement('a'), { href: URL.createObjectURL(blob), download: '译制提名汇总_' + SEASON + '.csv' });
+  a.click();
+  URL.revokeObjectURL(a.href);
+};
+
+/* 切页 */
+function swap(showEl, hideEl, onEl, offEl, after) {
+  closeFocus(true);
+  onEl.classList.add('on');
+  offEl.classList.remove('on');
+  gsap.to(hideEl, { opacity: 0, duration: D(.18), onComplete() {
+    hideEl.classList.add('hide');
+    showEl.classList.remove('hide');
+    gsap.set(showEl, { opacity: 1 });
+    if (after) after();
+  }});
+}
+function showRes() { swap($('#resView'), $('#voteView'), $('#tabRes'), $('#tabVote'), () => loadRes(true)); }
+$('#tabRes').onclick = showRes;
+$('#tabVote').onclick = () => swap($('#voteView'), $('#resView'), $('#tabVote'), $('#tabRes'), revealCards);
+
+if (INVITE) {
+  $('#paneLogin').classList.add('hide');
+  $('#paneReg').classList.remove('hide');
+} else if (linkKey || KEY) {
+  enter(linkKey || KEY);
+}
+</script>
+</body>
+</html>

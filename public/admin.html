@@ -1,0 +1,254 @@
+<!doctype html>
+<html lang="zh-CN" data-theme="light">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>拨雪寻春 · 管理</title>
+<link rel="icon" href="icon.png">
+<style>
+/* 跟投票页同一套色板和形状锁。这页不上动效库，纯静态控制台 */
+:root{
+  --bg:#f6f7fa; --sf:#fff; --sf-2:#eff1f6; --line:#e2e6f0; --line-2:#c6ccda;
+  --fg:#2a3145; --fg-2:#626b84; --fg-3:#697083; --ph:#646d81;
+  --brand:#5b6785; --acc:#c43c58; --acc-h:#b8324e; --on-acc:#fff;
+  --ok:#2d7a5c; --warn:#9c611c;
+  --sh:0 4px 16px rgba(91,103,133,.09);
+  --sans:system-ui,-apple-system,"PingFang SC","HarmonyOS Sans SC","Source Han Sans SC","Microsoft YaHei",sans-serif;
+  --mono:ui-monospace,"SF Mono","Cascadia Mono",Consolas,monospace;
+  --r:10px;
+  color-scheme:light;
+}
+:root[data-theme=dark]{
+  --bg:#12141d; --sf:#1a1d29; --sf-2:#232736; --line:#2c3143; --line-2:#3d4459;
+  --fg:#e8eaf2; --fg-2:#a8b0c6; --fg-3:#9aa2ba; --ph:#8f97ae;
+  --brand:#a8b4d8; --acc:#f0798f; --acc-h:#f78fa2; --on-acc:#2b0f16;
+  --ok:#52c99a; --warn:#e0a94f;
+  --sh:0 4px 16px rgba(0,0,0,.4);
+  color-scheme:dark;
+}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--fg);font-family:var(--sans);font-size:15px;line-height:1.65}
+a{color:var(--acc)}
+.wrap{max-width:900px;margin:0 auto;padding:28px 20px 60px}
+input,textarea,button,select{font-family:inherit;font-size:inherit;color:inherit;border-radius:var(--r)}
+input,select{width:100%;background:var(--sf-2);border:1px solid var(--line-2);padding:9px 13px}
+input::placeholder{color:var(--ph)}
+input:focus,select:focus{outline:none;border-color:var(--acc);background:var(--sf)}
+button{cursor:pointer;border:1px solid var(--acc);background:var(--acc);color:var(--on-acc);
+  padding:9px 18px;font-weight:600}
+button:hover{background:var(--acc-h);border-color:var(--acc-h)}
+button:disabled{opacity:.45;cursor:not-allowed}
+button.ghost{background:var(--sf);border-color:var(--line-2);color:var(--fg-2);font-weight:500}
+button.ghost:hover{border-color:var(--brand);color:var(--brand);background:var(--sf)}
+button.mini{padding:5px 11px;font-size:13px}
+:focus-visible{outline:2px solid var(--acc);outline-offset:2px}
+.hide{display:none!important}
+.err{color:var(--acc);font-size:13px;min-height:19px}
+.row{display:flex;gap:10px;align-items:center;flex-wrap:wrap}
+
+.gate{min-height:100dvh;display:grid;place-items:center;padding:24px}
+.gate div{width:100%;max-width:320px;text-align:center}
+.gate img{width:64px;height:64px;margin-bottom:14px}
+.gate h1{font-size:19px;margin:0 0 18px}
+.gate input{text-align:center;margin-bottom:10px}
+.gate button{width:100%}
+
+h1.t{font-size:21px;margin:0 0 4px}
+.sub{color:var(--fg-3);font-size:12.5px;margin-bottom:24px}
+section{background:var(--sf);border:1px solid var(--line);border-radius:var(--r);
+  padding:18px 20px;margin-bottom:16px;box-shadow:var(--sh)}
+h2{font-size:15px;margin:0 0 4px}
+.tip{color:var(--fg-3);font-size:12.5px;margin:0 0 14px}
+.mono{font-family:var(--mono)}
+table{width:100%;border-collapse:collapse;font-size:13px}
+th{text-align:left;font-weight:600;color:var(--fg-3);font-size:12px;
+  border-bottom:1px solid var(--line);padding:6px 8px 6px 0}
+td{padding:7px 8px 7px 0;border-bottom:1px solid var(--line);vertical-align:middle}
+td.k{font-family:var(--mono);color:var(--acc);font-weight:600;white-space:nowrap}
+.links{background:var(--sf-2);border:1px solid var(--line-2);border-radius:var(--r);
+  padding:12px 14px;margin-top:12px;font-family:var(--mono);font-size:12.5px;
+  word-break:break-all;line-height:2}
+.badge{font-size:11.5px;padding:1px 8px;border-radius:var(--r);border:1px solid var(--line-2);color:var(--fg-3)}
+.badge.used{color:var(--fg-3)}
+.badge.free{color:var(--ok);border-color:var(--ok)}
+.empty{color:var(--fg-3);font-size:13px;padding:12px 0}
+.warn{color:var(--warn);font-size:12.5px;margin-top:10px}
+</style>
+</head>
+<body>
+
+<section class="gate" id="gate">
+  <div>
+    <img src="icon.png" alt="拨雪寻春" width="64" height="64">
+    <h1>管理控制台</h1>
+    <input id="pw" type="password" placeholder="管理员口令" autocomplete="current-password" aria-label="管理员口令">
+    <button id="go">进入</button>
+    <div class="err" id="gateErr" role="alert"></div>
+  </div>
+</section>
+
+<main class="wrap hide" id="app">
+  <h1 class="t">管理控制台</h1>
+  <div class="sub">口令只在这个页面用一次，不会存进浏览器。关掉页面就要重新输。</div>
+
+  <section>
+    <h2>发注册链接</h2>
+    <p class="tip">一条链接只能注册一个人，用掉即作废。发给谁就填个备注，方便对账。</p>
+    <div class="row">
+      <input id="cnt" type="number" min="1" max="30" value="5" style="width:90px" aria-label="生成数量">
+      <input id="note" placeholder="备注，例如「10月新人」" maxlength="40" style="flex:1;min-width:150px">
+      <button id="mk">生成</button>
+    </div>
+    <div class="links hide" id="out"></div>
+    <div class="warn hide" id="outTip">逐条私发给本人。谁先点谁占用，别发到群里。</div>
+  </section>
+
+  <section>
+    <h2>没用掉的注册链接</h2>
+    <p class="tip">已经被用掉的会标上是谁用的。</p>
+    <div id="invites"><div class="empty">载入中</div></div>
+  </section>
+
+  <section>
+    <h2>已发密钥</h2>
+    <p class="tip">补发给忘了密钥的人，或者吊销离组成员。吊销只作废密钥，他投过的票还在。</p>
+    <div id="keys"><div class="empty">载入中</div></div>
+  </section>
+
+  <section>
+    <h2>季度</h2>
+    <p class="tip">改季度状态要动 public/seasons.json 再重新部署，这里只做只读概览和撤票。</p>
+    <div class="row" style="margin-bottom:12px">
+      <select id="season" aria-label="季度"></select>
+      <span class="tip" style="margin:0" id="seasonInfo"></span>
+    </div>
+    <div class="row">
+      <input id="delName" placeholder="要撤票的名字" maxlength="32" style="flex:1;min-width:150px">
+      <button class="ghost" id="del">撤掉这个人的票</button>
+    </div>
+    <div class="err" id="msg" role="alert"></div>
+  </section>
+</main>
+
+<script>
+const $ = (s) => document.querySelector(s);
+const esc = (s) => String(s ?? '').replace(/[&<>"]/g, (c) => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+document.documentElement.dataset.theme =
+  matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
+
+// 口令只放在内存里。刷新就要重输，比存进 localStorage 安全
+let PW = '';
+let SEASONS = [];
+
+const api = async (path, body) => {
+  const r = await fetch('/api' + path, {
+    method: 'POST', headers: { 'content-type': 'application/json' },
+    body: JSON.stringify({ key: PW, ...body }),
+  });
+  const d = await r.json().catch(() => ({ error: 'HTTP ' + r.status }));
+  if (!r.ok) throw new Error(d.error || 'HTTP ' + r.status);
+  return d;
+};
+
+$('#go').onclick = async () => {
+  $('#gateErr').textContent = '';
+  const btn = $('#go');
+  btn.disabled = true;
+  try {
+    PW = $('#pw').value;
+    const d = await api('/auth', {});
+    if (d.role !== 'admin') throw new Error('这不是管理员口令');
+    SEASONS = d.seasons;
+    $('#season').innerHTML = SEASONS
+      .map((s) => '<option value="' + esc(s.id) + '">' + esc(s.label) + '</option>').join('');
+    $('#season').value = d.current;
+    seasonInfo();
+    $('#gate').classList.add('hide');
+    $('#app').classList.remove('hide');
+    refresh();
+  } catch (e) {
+    PW = '';
+    $('#gateErr').textContent = e.message;
+  } finally {
+    btn.disabled = false;
+  }
+};
+$('#pw').onkeydown = (e) => { if (e.key === 'Enter') $('#go').click(); };
+
+function seasonInfo() {
+  const s = SEASONS.find((x) => x.id === $('#season').value);
+  $('#seasonInfo').textContent = s ? (s.status === 'open' ? '投票进行中' : '已截止，汇总走仓库里的存档，不消耗 KV') : '';
+}
+$('#season').onchange = seasonInfo;
+
+$('#mk').onclick = async () => {
+  $('#msg').textContent = '';
+  try {
+    const d = await api('/invite', { count: +$('#cnt').value, note: $('#note').value });
+    const base = location.origin + '/?j=';
+    $('#out').innerHTML = d.tokens.map((t) => esc(base + t)).join('<br>');
+    $('#out').classList.remove('hide');
+    $('#outTip').classList.remove('hide');
+    loadInvites();
+  } catch (e) { $('#msg').textContent = e.message; }
+};
+
+async function loadInvites() {
+  try {
+    const d = await api('/invites', {});
+    const rows = d.invites;
+    if (!rows.length) { $('#invites').innerHTML = '<div class="empty">还没发过</div>'; return; }
+    $('#invites').innerHTML = '<table><tr><th>注册链接</th><th>备注</th><th>状态</th><th></th></tr>' +
+      rows.map((r) => '<tr>' +
+        '<td class="k">' + esc(r.token) + '</td>' +
+        '<td>' + esc(r.note || '') + '</td>' +
+        '<td>' + (r.used
+          ? '<span class="badge used">' + esc(r.used) + ' 已用</span>'
+          : '<span class="badge free">未使用</span>') + '</td>' +
+        '<td>' + (r.used ? '' : '<button class="ghost mini" data-un="' + esc(r.token) + '">作废</button>') + '</td>' +
+      '</tr>').join('') + '</table>';
+  } catch (e) { $('#invites').innerHTML = '<div class="empty">' + esc(e.message) + '</div>'; }
+}
+
+async function loadKeys() {
+  try {
+    const d = await api('/keys', {});
+    if (!d.keys.length) { $('#keys').innerHTML = '<div class="empty">还没有人注册</div>'; return; }
+    $('#keys').innerHTML = '<table><tr><th>名字</th><th>密钥</th><th></th></tr>' +
+      d.keys.map((k) => '<tr>' +
+        '<td>' + esc(k.name) + '</td>' +
+        '<td class="k">' + esc(k.key) + '</td>' +
+        '<td><button class="ghost mini" data-rv="' + esc(k.name) + '">吊销</button></td>' +
+      '</tr>').join('') + '</table>';
+  } catch (e) { $('#keys').innerHTML = '<div class="empty">' + esc(e.message) + '</div>'; }
+}
+
+const refresh = () => { loadInvites(); loadKeys(); };
+
+document.addEventListener('click', async (e) => {
+  const un = e.target.closest('[data-un]');
+  const rv = e.target.closest('[data-rv]');
+  $('#msg').textContent = '';
+  try {
+    if (un) { await api('/uninvite', { token: un.dataset.un }); loadInvites(); }
+    if (rv && confirm('吊销「' + rv.dataset.rv + '」的密钥？他投过的票不受影响。')) {
+      await api('/revoke', { name: rv.dataset.rv });
+      loadKeys();
+    }
+  } catch (err) { $('#msg').textContent = err.message; }
+});
+
+$('#del').onclick = async () => {
+  const name = $('#delName').value.trim();
+  $('#msg').textContent = '';
+  if (!name) return;
+  if (!confirm('撤掉「' + name + '」在 ' + $('#season').value + ' 的票？')) return;
+  try {
+    await api('/delete', { name, season: $('#season').value });
+    $('#msg').textContent = '已撤掉 ' + name + ' 的票';
+    $('#delName').value = '';
+  } catch (e) { $('#msg').textContent = e.message; }
+};
+</script>
+</body>
+</html>
