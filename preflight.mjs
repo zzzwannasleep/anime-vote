@@ -8,7 +8,13 @@ const ok = (cond, label, extra = '') => {
   else { fail++; console.log('  ❌', label, extra); }
 };
 
-const html = readFileSync('public/index.html', 'utf8');
+/* 一律按 LF 读。Windows 上 core.autocrlf=true 会在检出时把工作区换成 CRLF，
+   而下面一堆断言是拿换行符去卡源码里「这一行紧跟着那一行」的（管理端点的权限闸、
+   提示语的取值都是），CRLF 一来就全部匹配不上，报出来的却是「端点没查权限」
+   这种要命的假警报。踩过一次：rebase 让 git 重新检出了文件，两条断言当场变红 */
+const read = (f) => readFileSync(f, 'utf8').replace(/\r\n/g, '\n');
+
+const html = read('public/index.html');
 const cfg = JSON.parse(readFileSync('public/config.json', 'utf8'));
 const seasons = JSON.parse(readFileSync('public/seasons.json', 'utf8'));
 
@@ -290,7 +296,7 @@ console.log('\n[配置与季度自洽]');
 
   // 演示数据里的岗位名必须跟白名单对得上，否则灌进去会被服务端全部丢掉
   if (existsSync('seed.mjs')) {
-    const seedRoles = [...readFileSync('seed.mjs', 'utf8').matchAll(/'([^']+)'/g)]
+    const seedRoles = [...read('seed.mjs').matchAll(/'([^']+)'/g)]
       .map((m) => m[1])
       // 只认「纯中文 2 到 4 字」的词，不然理由句子里带个「校对」也会被当成岗位名
       .filter((s) => /^[一-龥]{2,4}$/.test(s) && /翻译|校对|时轴|时间轴|特效|压制|分流|片源|总监|后期/.test(s));
@@ -301,21 +307,21 @@ console.log('\n[配置与季度自洽]');
 
 console.log('\n[后端契约]');
 {
-  const w = readFileSync('src/worker.js', 'utf8');
+  const w = read('src/worker.js');
   ok(!/env\.VOTE_PASSWORD/.test(w), '共享口令已经彻底去掉（那是「换个名字就能重投」的洞）');
   // 又一对「必须成对出现」：默认静态资源在 Worker 之前直出，
   // 光在 worker.js 里写 403 是死代码，必须同时把 /archive/* 交给 Worker 先跑。
   // 实测过：只写 403 时 GET /archive/xxx.json 照样返回 200 全文。
   const guard = /pathname\.startsWith\('\/archive\/'\)/.test(w);
-  const routed = /run_worker_first\s*=\s*\[[^\]]*["']\/archive\/\*["']/.test(readFileSync('wrangler.toml', 'utf8'));
+  const routed = /run_worker_first\s*=\s*\[[^\]]*["']\/archive\/\*["']/.test(read('wrangler.toml'));
   ok(guard, 'worker 里挡了 /archive/ 的直接访问');
   ok(!guard || routed, 'wrangler.toml 把 /archive/* 交给 Worker 先跑（不配这条，上面那个 403 是死代码）');
   // 第三对「必须成对出现」：README 教的是在网页后台填 ADMIN_PASSWORD，
   // 而 wrangler 默认把配置文件当唯一真相源，部署时会删掉后台里手填的 vars/secrets
   // （schema 原话：wrangler *will* override/delete them on its next deploy）。
   // 没有 keep_vars = true，推一次代码口令就没了，管理页当场登不进去。
-  const toml = readFileSync('wrangler.toml', 'utf8');
-  const dashSecret = /Variables and Secrets/.test(readFileSync('README.md', 'utf8'));
+  const toml = read('wrangler.toml');
+  const dashSecret = /Variables and Secrets/.test(read('README.md'));
   ok(!dashSecret || /^\s*keep_vars\s*=\s*true/m.test(toml),
      'wrangler.toml 有 keep_vars = true（README 教人在后台填口令，不配这条会被部署删掉）');
   // TOML 的顶层键必须写在所有 [表头] 之前。写到表后面会被算成那个表的字段，
@@ -330,7 +336,7 @@ console.log('\n[后端契约]');
      'kv_namespaces 没写 id（写了就不会自动开 KV，填占位符更是线上一读就炸）');
   // README 里的站内锚点必须指得到真标题。改标题忘了改链接不会有任何报错，
   // 点下去只是无声地不动——刚把「抓番剧数据」改名时就断了一个。
-  const md = readFileSync('README.md', 'utf8');
+  const md = read('README.md');
   const slug = (h) => h.trim().toLowerCase()
     .replace(/[`*_]/g, '').replace(/[^\w一-龥 -]/g, '').replace(/ /g, '-');
   const heads = new Set([...md.matchAll(/^#{2,4} (.+)$/gm)].map((m) => slug(m[1])));
@@ -338,18 +344,18 @@ console.log('\n[后端契约]');
   ok(!dead.length, 'README 的站内锚点都指得到真标题', dead.join(' | '));
 
   // 工作流跑的脚本得真的存在，重命名脚本忘了改工作流只有推上去才会发现
-  const wf = readFileSync('.github/workflows/fetch-anime.yml', 'utf8');
+  const wf = read('.github/workflows/fetch-anime.yml');
   ok(/node fetch-anime\.mjs/.test(wf) && existsSync('fetch-anime.mjs'), '工作流跑的 fetch-anime.mjs 存在');
-  ok(/BANGUMI_TOKEN/.test(readFileSync('fetch-anime.mjs', 'utf8')),
+  ok(/BANGUMI_TOKEN/.test(read('fetch-anime.mjs')),
      'fetch-anime.mjs 认 BANGUMI_TOKEN（工作流会把它传进来，脚本不读就是白配）');
-  const fa = readFileSync('fetch-anime.mjs', 'utf8');
+  const fa = read('fetch-anime.mjs');
   // updated 无条件写当前时间的话，每次定时跑都会产出一个只改时间戳的 diff，
   // 工作流里「数据没变化，不提交」那条分支就永远是死代码。
   ok(/updated: unchanged \? prev\.updated : new Date/.test(fa),
      '番剧没变时沿用旧的 updated（否则定时任务每周提交一次空 diff）');
   ok(/数据没变化，不提交/.test(wf), '工作流有「没变化就不提交」的分支');
 
-  const ex = readFileSync('.dev.vars.example', 'utf8');
+  const ex = read('.dev.vars.example');
   ok(/^ADMIN_PASSWORD\s*=\s*(#|$)/m.test(ex),
      '.dev.vars.example 只有变量名没有值（它是一键部署按钮的密钥清单，填了值就等于把口令提交了）');
   ok(/archivedBallots/.test(w) && /season\.status === 'open' \? null : await archivedBallots/.test(w),
@@ -373,7 +379,7 @@ console.log('\n[后端契约]');
 
 console.log('\n[管理页]');
 {
-  const ad = readFileSync('public/admin.html', 'utf8');
+  const ad = read('public/admin.html');
   const bad = [];
   ad.split('\n').forEach((ln, i) => {
     if ([...ln].some((c) => c === '—' || c === '–')) bad.push('dash:' + (i + 1));
@@ -402,17 +408,17 @@ console.log('\n[凭据没有泄进仓库]');
   const hits = [];
   for (const f of files) {
     if (!existsSync(f)) continue;
-    const txt = readFileSync(f, 'utf8');
+    const txt = read(f);
     // 允许 local-test-* 这种一眼假的本地占位，其余形如 密码=值 的都要拦
     for (const m of txt.matchAll(/(PASSWORD|passwd|token|secret)\s*[:=]\s*['"]([^'"]{4,})['"]/gi))
       // 放过一眼就知道是假的占位：本地测试口令、模板占位、测试里故意填错的值
       if (!/^local-test-|^换成|PUT_YOUR|^Z{4,}|^wrong-|^x$/.test(m[2])) hits.push(`${f}: ${m[1]} = ${m[2].slice(0, 12)}`);
   }
   ok(!hits.length, '源码里没有硬编码的口令 / token', hits.join(' | '));
-  ok(/^\.dev\.vars$/m.test(readFileSync('.gitignore', 'utf8')), '.dev.vars 在 .gitignore 里');
+  ok(/^\.dev\.vars$/m.test(read('.gitignore')), '.dev.vars 在 .gitignore 里');
   ok(!existsSync('public/keys.json'), '密钥名单没有被写成文件落进仓库');
   const arc = existsSync('public/archive')
-    ? readdirSync('public/archive').map((f) => readFileSync('public/archive/' + f, 'utf8')).join('\n') : '';
+    ? readdirSync('public/archive').map((f) => read('public/archive/' + f)).join('\n') : '';
   ok(!/[0-9A-Z]{4}-[0-9A-Z]{4}-[0-9A-Z]{4}/.test(arc), '存档文件里没有密钥形状的字符串');
 }
 
