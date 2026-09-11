@@ -268,6 +268,20 @@ export default {
       return json({ ok: true, revoked: !!key });
     }
 
+    /* 重置某人的密钥：旧的立刻作废，换一枚新的交给他。票一张不动。
+       吊销是「这个人不该再进来」，重置是「这个人还在，只是把密钥忘了」——
+       忘了密钥的人以前只能等管理员吊销再重新发一条注册链接，中间他是彻底进不来的 */
+    if (pathname === '/api/reset') {
+      if (!admin) return json({ error: '需要管理员口令' }, 403);
+      const name = normName(body.name);
+      if (!name) return json({ error: '请填名字' }, 400);
+      const old = await env.VOTES.get('name:' + name, 'text');
+      if (old) await env.VOTES.delete('who:' + old);
+      await env.VOTES.delete('name:' + name);
+      const { key } = await keyFor(env, name);
+      return json({ ok: true, name, key: prettyKey(key), had: !!old });
+    }
+
     // 发过哪些密钥。补发、对名单用
     if (pathname === '/api/keys') {
       if (!admin) return json({ error: '需要管理员口令' }, 403);

@@ -29,7 +29,6 @@
   --warn-bg:rgba(156,97,28,.09); --warn-bd:rgba(156,97,28,.38);
   --bar:rgba(246,247,250,.92);
   --glow:rgba(196,60,88,.07);
-  --ov:rgba(42,49,69,.44);
   --sh:0 4px 16px rgba(91,103,133,.09);
   --sh-2:0 10px 30px rgba(91,103,133,.15);
   --sans:system-ui,-apple-system,"PingFang SC","HarmonyOS Sans SC","Source Han Sans SC","Noto Sans CJK SC","Microsoft YaHei",sans-serif;
@@ -58,7 +57,6 @@
   --warn-bg:rgba(224,169,79,.12); --warn-bd:rgba(224,169,79,.34);
   --bar:rgba(18,20,29,.9);
   --glow:rgba(240,121,143,.1);
-  --ov:rgba(6,7,11,.66);
   --sh:0 4px 16px rgba(0,0,0,.4);
   --sh-2:0 12px 34px rgba(0,0,0,.55);
   color-scheme:dark;
@@ -115,12 +113,25 @@ button.mini{padding:6px 13px;font-size:13px}
 .gate-sub{color:var(--fg-3);font-size:12.5px;margin-bottom:20px}
 .gate-in input{text-align:center;letter-spacing:.1em;margin-bottom:9px}
 .gate-in input.plain{letter-spacing:0}
+/* 密钥字段是真的 type=password（密码管理器只认这个），所以配一个「显示」开关：
+   这枚密钥是给人手抄的，字母表专门去掉了 0/O/1/I/L，看不见就没法核对 */
+.keyline{position:relative}
+.keyline input{padding-left:52px;padding-right:52px}
+/* Edge 给 type=password 自带一个小眼睛，跟下面这个「显示」按钮并排出现就成了两个开关。
+   其它浏览器都没有，所以不能靠它，只能把它按掉 */
+.keyline input::-ms-reveal{display:none}
+.peek{position:absolute;right:5px;top:0;bottom:9px;padding:0 8px;display:grid;place-items:center;
+  background:none;border:none;color:var(--fg-3);font-size:12px;font-weight:500;letter-spacing:0}
+.peek:hover{background:none;border:none;color:var(--acc);box-shadow:none}
+/* 密码管理器要「用户名 + 密码」成对才肯保存，但这站的用户名来自注册时填的名字，不用再问一遍 */
+.offscreen{position:absolute;left:-9999px;top:0;width:1px;height:1px;opacity:0;pointer-events:none}
 .gate-in button.go{width:100%}
 .keyout{background:var(--sf);border:1px solid var(--acc);border-radius:var(--r);
   padding:14px;margin:12px 0}
 .keyout .k{font-family:var(--mono);font-size:19px;font-weight:700;color:var(--acc);
   letter-spacing:.08em;word-break:break-all}
 .keyout .t{font-size:12px;color:var(--fg-3);margin-top:6px}
+.keyout .row{margin-top:11px;justify-content:center}
 
 /* 页眉 */
 header{padding:24px 0 0;margin-bottom:20px}
@@ -196,14 +207,18 @@ h1.title{font-size:21px;font-weight:700;letter-spacing:-.015em;margin:0;flex:1;m
 
 /* 聚焦面板：点一张卡片，整页让位给这一部 */
 #focus{position:fixed;inset:0;z-index:60;display:grid;place-items:center;padding:26px}
-.fx-back{position:absolute;inset:0;background:var(--ov);
-  backdrop-filter:blur(6px);-webkit-backdrop-filter:blur(6px)}
+/* 底色直接用页面底色，不再压一层半透明黑。那层黑有三个毛病：
+   它和背板各走一条时间轴，进场时先冒出来、退场时又留在最后；
+   backdrop-filter 上做 opacity 动画本身就掉帧，淡出常常卡住；
+   而且海报槽是另一种灰，一个面板里三种底色，看起来就是「各动各的」。
+   现在 .fx-back / .fx-sheet / .fx-poster 同色同一条时间轴，整块一起动 */
+.fx-back{position:absolute;inset:0;background:var(--bg)}
 .fx-card{position:relative;width:100%;max-width:880px;max-height:calc(100dvh - 52px);
   display:grid;grid-template-columns:264px 1fr;gap:26px;padding:26px}
 .fx-sheet{position:absolute;inset:0;background:var(--sf);border:1px solid var(--line);
   border-radius:var(--r);box-shadow:var(--sh-2)}
 .fx-poster{position:relative;z-index:1;width:100%;aspect-ratio:2/3;border-radius:var(--r);
-  overflow:hidden;background:var(--sf-2);align-self:start}
+  overflow:hidden;background:var(--sf);align-self:start}
 .fx-poster img{width:100%;height:100%;object-fit:cover;display:block}
 /* 飞行替身：body 的直接子元素，不受 .card / #fxPoster 那两层 overflow:hidden 裁剪。
    网格海报和面板海报都是 2:3，所以等比 scale 就够，全程只动 transform */
@@ -329,12 +344,17 @@ footer{color:var(--fg-3);font-size:12px;margin-top:44px;padding:18px 0 36px;bord
     <img src="icon.png" alt="拨雪寻春" width="78" height="78">
     <h1>拨雪寻春番剧译制投票</h1>
 
-    <div id="paneLogin">
+    <form id="paneLogin" autocomplete="on">
+      <input id="uname" name="username" class="offscreen" autocomplete="username" tabindex="-1" aria-hidden="true">
       <div class="gate-sub">用你的专属密钥进入</div>
-      <input id="key" placeholder="XXXX-XXXX-XXXX" autocomplete="off" spellcheck="false" aria-label="你的密钥">
-      <button class="go" id="enter">进入</button>
+      <div class="keyline">
+        <input id="key" name="password" type="password" placeholder="XXXX-XXXX-XXXX"
+               autocomplete="current-password" spellcheck="false" aria-label="你的密钥">
+        <button class="peek" id="peek" type="button" aria-label="显示或隐藏密钥">显示</button>
+      </div>
+      <button class="go" id="enter" type="submit">进入</button>
       <div class="gate-sub" style="margin:14px 0 0">还没有密钥？找管理员要一条注册链接</div>
-    </div>
+    </form>
 
     <div id="paneReg" class="hide">
       <div class="gate-sub">填个名字，这条链接就绑定成你的了</div>
@@ -343,6 +363,10 @@ footer{color:var(--fg-3);font-size:12px;margin-top:44px;padding:18px 0 36px;bord
       <div id="keyBox" class="keyout hide">
         <div class="k mono" id="keyVal"></div>
         <div class="t" id="keyTip"></div>
+        <div class="row">
+          <button class="ghost mini" id="keyCopy" type="button">复制密钥</button>
+          <button class="mini" id="keyGo" type="button">我已存好，进入</button>
+        </div>
       </div>
       <button class="link" id="toLogin">已经有密钥了，去登录</button>
     </div>
@@ -503,13 +527,20 @@ $('#reg').onclick = async () => {
     const d = await r.json();
     if (!r.ok) throw new Error(d.error || 'HTTP ' + r.status);
     $('#keyVal').textContent = d.key;
-    $('#keyTip').textContent = '这枚密钥就是你的身份，浏览器已经记住了。换设备时用它登录，别发到群里。';
+    $('#keyTip').textContent = '这枚密钥就是你的身份。先抄下来或点「复制密钥」存好，再点进入；'
+      + '别发到群里。真忘了可以找管理员重置，但这一枚就作废了。';
     $('#keyBox').classList.remove('hide');
+    // 顺手把登录表单填好：点「我已存好，进入」会真的 submit 一次，
+    // 浏览器的密码管理器只在「表单提交 + 表单随即消失」这个组合下才会问要不要保存
+    $('#uname').value = d.name;
     $('#key').value = d.key;
     // 注册码用掉了就从地址栏抹掉，否则刷新一下又回到注册页，还报「已经被用掉了」
     history.replaceState(null, '', location.pathname);
     if (!REDUCE) gsap.from('#keyBox', { opacity: 0, y: 10, duration: .45, ease: 'power3.out' });
-    setTimeout(() => enter(d.key), 1800);
+    /* 这里以前是 setTimeout(enter, 1800)：密钥只在屏幕上待 1.8 秒就被自动跳过去了，
+       文案还写着「浏览器已经记住了」。实际记的只是 localStorage 里的一份，
+       换设备、清缓存、换浏览器都没了，密码管理器里也翻不到。
+       组员第二天就登不进来，报的就是这个。现在必须他自己点一下才走 */
   } catch (e) {
     $('#gateErr').textContent = e.message;
   } finally {
@@ -563,8 +594,20 @@ async function enter(key) {
     btn.textContent = '进入';
   }
 }
-$('#enter').onclick = () => enter($('#key').value.trim());
-$('#key').onkeydown = (e) => { if (e.key === 'Enter') $('#enter').click(); };
+// 走 submit 而不是 click：回车键天然生效，浏览器也才认这是一次登录
+$('#paneLogin').onsubmit = (e) => { e.preventDefault(); enter($('#key').value.trim()); };
+$('#peek').onclick = () => {
+  const hidden = $('#key').type === 'password';
+  $('#key').type = hidden ? 'text' : 'password';
+  $('#peek').textContent = hidden ? '隐藏' : '显示';
+};
+$('#keyCopy').onclick = async () => {
+  const k = $('#keyVal').textContent;
+  try { await navigator.clipboard.writeText(k); $('#keyCopy').textContent = '已复制'; }
+  catch (e) { prompt('手动复制这枚密钥，存到自己的密码管理器里：', k); }
+  setTimeout(() => { $('#keyCopy').textContent = '复制密钥'; }, 2000);
+};
+$('#keyGo').onclick = () => enter($('#keyVal').textContent);
 $('#rname').onkeydown = (e) => { if (e.key === 'Enter') $('#reg').click(); };
 $('#logout').onclick = () => { localStorage.removeItem('vk'); location.reload(); };
 
@@ -764,7 +807,9 @@ function fly(from, to, src, dur, onLand) {
   gsap.to(el, {
     x: to.left, y: to.top, scale: to.width / from.width,
     duration: dur, ease: 'power3.inOut',
-    onComplete() { el.remove(); if (flyer === el) flyer = null; onLand(); },
+    // 顺序要紧：先让落地那头显出来，再撤替身。反过来中间会空一帧，
+    // 观感就是海报「闪一下」。两张同图同位，同一帧里换掉谁都看不出来
+    onComplete() { onLand(); el.remove(); if (flyer === el) flyer = null; },
   });
   return true;
 }
@@ -773,7 +818,45 @@ const posterRect = (id) => {
   const card = document.querySelector('.card[data-id="' + id + '"]');
   return card ? card.querySelector('.poster').getBoundingClientRect() : null;
 };
-const CHROME = ['.fx-back', '.fx-sheet', '.fx-body', '.fx-nav', '#fxClose'];
+/* 关闭时要一起淡出的全部图层。.fx-poster 以前漏在外面：它是 .fx-sheet 的兄弟节点、
+   自带一层底色，别人都淡完了它还是全不透明，直到 display:none 把它硬切掉。
+   用户说的「退出时封面的黑色底卡在那」就是这一块 */
+const CHROME = ['.fx-back', '.fx-sheet', '.fx-poster', '.fx-body', '.fx-nav', '#fxClose'];
+const SHELL = ['.fx-back', '.fx-sheet', '.fx-poster'];   // 底色层，同色同一条时间轴，整块一起动
+const PARTS = ['.fx-body > *', '.fx-nav', '#fxClose'];   // 内容层，错峰进场
+
+/* 工具栏是 sticky 的，会压住它底下卡片的上沿。从被压住的位置起飞，替身（z-index 80）
+   直接盖过工具栏冒出来，看着是「越过顶栏突然出现」。起飞前先把卡片滚到工具栏下面，
+   两头的落点就都在真正看得见的区域里。
+   回程时背景滚动是锁着的、滚不动，那就干脆不飞：淡出比穿过顶栏干净 */
+const barBottom = () => {
+  const b = document.querySelector('#voteView .bar');
+  const r = b && b.getBoundingClientRect();
+  return r && r.height ? r.bottom : 0;
+};
+const belowBar = (r) => !!r && r.top >= barBottom() - 1;
+async function clearBar(id) {
+  const r = posterRect(id);
+  /* 留 24px 而不是贴着栏底：锁背景滚动时要补一条滚动条宽度的 padding，网格会跟着窄一点、
+     行高跟着矮一点，卡片位置会再往上挪十几个像素。挪多少跟它在第几行有关，算不准，
+     所以这里留够余量，真挪过头了由下面 belowBar(from) 那道闸兜住 */
+  const want = barBottom() + 24;
+  if (!r || r.top >= want) return;
+  if (REDUCE) { scrollBy({ top: r.top - want }); return; }
+  scrollBy({ top: r.top - want, behavior: 'smooth' });
+  /* 平滑滚动跑多久是浏览器说了算，定时等一个数必然踩不准；而且紧接着 lockScroll
+     一上 overflow:hidden 就会把还在跑的滚动掐断，卡片停在半路，等于白滚。
+     所以盯着它自己到位，到了就走；连着几帧都没动说明已经到顶了，也别干等 */
+  let still = 0, last = -1;
+  for (let i = 0; i < 45; i++) {
+    await new Promise((res) => requestAnimationFrame(res));
+    const now = posterRect(id);
+    if (!now || now.top >= want - 1) break;
+    still = scrollY === last ? still + 1 : 0;
+    last = scrollY;
+    if (still > 4) break;
+  }
+}
 
 function fillFocus(a) {
   const p = PICK.get(a.id);
@@ -807,11 +890,21 @@ function paintFocusAct(a) {
   $('#fxWhy').disabled = !p;
 }
 
-function openFocus(id) {
+async function openFocus(id) {
   const a = BY.get(id);
   if (!a || FX !== null) return;
   FX = id;
+  await clearBar(id);
+  if (FX !== id) return;                     // 滚那 340ms 里被 Esc / 切页关掉了，就别接着开
   fillFocus(a);
+  /* 起始态必须在面板可见之前钉好。上一版是先 remove('hide') 再 set opacity，
+     中间那一帧面板是全亮的：封面闪一现、底色提前冒出来、整块主卡片也闪一下，
+     报的三个「闪」都是这一帧。gsap 对 display:none 的元素照样写得进内联样式，
+     所以顺序完全可以反过来 */
+  if (!REDUCE) {
+    gsap.set('.fx-body', { opacity: 1 });    // 正文本体不参与淡入，只让它的孩子错峰进，免得两层 opacity 相乘
+    gsap.set([...SHELL, ...PARTS, '#fxImg'], { opacity: 0 });
+  }
   lockScroll(true);                          // 先锁再量，量到的落点才是最终布局里的落点
   $('#focus').classList.remove('hide');
 
@@ -819,18 +912,18 @@ function openFocus(id) {
   const from = posterRect(id);
   const to = $('#fxPoster').getBoundingClientRect();
   if (card) card.classList.add('flying');    // 替身在飞的时候，原位那张先藏起来
-  gsap.set('#fxImg', { opacity: 0 });
-  const flew = fly(from, to, a.cover, .5, () => {
-    gsap.to('#fxImg', { opacity: 1, duration: D(.16) });
+  // 滚完又被锁滚动的重排推回工具栏底下，就别飞了。替身是 z-index 80 的 fixed 层，
+  // 盖过工具栏冒出来比整块淡入突兀得多
+  const flew = fly(belowBar(from) ? from : null, to, a.cover, .5, () => {
+    gsap.set('#fxImg', { opacity: 1 });      // 瞬切，不淡入：淡入会露出一帧半透明，那就是「封面闪现」
     if (card) card.classList.remove('flying');
   });
 
   if (REDUCE) return;
-  gsap.fromTo('.fx-back', { opacity: 0 }, { opacity: 1, duration: .3 });
-  gsap.fromTo('.fx-sheet', { opacity: 0, scale: .97 }, { opacity: 1, scale: 1, duration: .38, ease: 'power3.out' });
-  gsap.fromTo('.fx-body > *', { opacity: 0, y: 14 },
-    { opacity: 1, y: 0, duration: .45, stagger: .05, ease: 'power3.out', delay: flew ? .16 : .06 });
-  gsap.fromTo('.fx-nav,.fx-close', { opacity: 0 }, { opacity: 1, duration: .3, delay: .22 });
+  // 底色三层同一段时间同一条曲线，看起来是一整块在动，不是各动各的
+  gsap.to(SHELL, { opacity: 1, duration: .34, ease: 'power2.out' });
+  gsap.fromTo(PARTS, { y: 12 },
+    { opacity: 1, y: 0, duration: .42, stagger: .04, ease: 'power3.out', delay: flew ? .14 : .05 });
 }
 
 function closeFocus(instant) {
@@ -856,9 +949,13 @@ function closeFocus(instant) {
   const to = posterRect(id);
   if (card) card.classList.add('flying');
   gsap.set('#fxImg', { opacity: 0 });
-  const flew = fly(from, to, a && a.cover, .44, () => { if (card) card.classList.remove('flying'); });
-  // 面板整体一起淡出。之前只淡了背板，字和输入框会硬生生悬在原地等飞行跑完才被切掉
-  gsap.to(CHROME, { opacity: 0, duration: flew ? .3 : .22, ease: 'power2.in' });
+  // 落点被工具栏压住时传 null 进去，fly 会当成「不可用」直接落位：
+  // 替身穿过顶栏钻回去比整块淡出突兀得多
+  const flew = fly(from, belowBar(to) ? to : null, a && a.cover, .44, () => {
+    if (card) card.classList.remove('flying');
+  });
+  // 面板整体一起淡出，和替身同一段时间落定（.42 对 .44），不留哪一层在后面收尾
+  gsap.to(CHROME, { opacity: 0, duration: flew ? .42 : .22, ease: 'power2.inOut' });
   gsap.delayedCall(flew ? .44 : .22, done);
 }
 

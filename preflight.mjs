@@ -74,7 +74,8 @@ const themes = {};
   ok(Object.keys(themes.dark).length > 10, `深色板定义了 ${Object.keys(themes.dark).length} 个变量`);
   // 深色板漏一个变量，那个颜色就悄悄沿用浅色，多半是深底上印浅字
   const holes = Object.keys(themes.dark).filter((k) => !(k in themes.light));
-  const leaks = ['bg','sf','sf-2','line','line-2','fg','fg-2','fg-3','ph','brand','acc','acc-h','on-acc','ok','warn','bar','glow','ov']
+  // 'ov'（半透明黑罩）已经去掉了：聚焦面板改用页面底色，三层底色同色同一条时间轴
+  const leaks = ['bg','sf','sf-2','line','line-2','fg','fg-2','fg-3','ph','brand','acc','acc-h','on-acc','ok','warn','bar','glow']
     .filter((k) => !(k in themes.dark));
   ok(!holes.length, '深色板没有浅色板里不存在的变量', holes.join(','));
   ok(!leaks.length, '关键颜色深色板全都重定义了（漏一个就是深底浅字）', leaks.join(','));
@@ -130,8 +131,10 @@ console.log('\n[聚焦面板 · 飞行层]');
 
   // 上一版的实测故障：关闭时只有背板淡出，正文和输入框 opacity 全程 1，
   // 直到 display:none 把它们硬切掉，看着就是「字悬在空中等动画跑完」
+  // .fx-poster 在淡出组外面漏过一次：它是 .fx-sheet 的兄弟节点、自带底色，
+  // 别人都淡完了它还全不透明，直到 display:none 硬切掉，表现就是「封面的底卡在那」
   const chrome = (html.match(/const CHROME = \[([^\]]*)\]/) || ['', ''])[1];
-  for (const part of ['.fx-back', '.fx-sheet', '.fx-body', '.fx-nav', '#fxClose'])
+  for (const part of ['.fx-back', '.fx-sheet', '.fx-poster', '.fx-body', '.fx-nav', '#fxClose'])
     ok(chrome.includes(part), `关闭时 ${part} 跟着一起淡出`);
   ok(/gsap\.to\(CHROME, \{ opacity: 0/.test(html), '关闭动画确实对整组 CHROME 生效');
 
@@ -150,6 +153,64 @@ console.log('\n[聚焦面板 · 飞行层]');
 
   // from 被中途打断会把「当前值」记成终点，下次再开就卡在半透明
   ok(!/gsap\.from\('\.fx-body/.test(html), '面板入场用 fromTo 而不是 from（打断重开不会卡在半透明）');
+
+  /* 报过的几个「闪一下」是同一个根因：先 remove('hide') 让面板可见、再 set opacity 0，
+     中间那一帧面板是全亮的。gsap 对 display:none 的元素照样写得进内联样式，
+     所以起始态必须钉在 remove('hide') 前面。这条只能按源码先后顺序验 */
+  const open = (html.match(/async function openFocus[\s\S]*?\n\}/) || [''])[0];
+  const atSet = open.indexOf('gsap.set([...SHELL');
+  const atShow = open.indexOf("$('#focus').classList.remove('hide')");
+  ok(atSet > -1 && atShow > -1 && atSet < atShow,
+     "起始态 opacity 钉在 remove('hide') 之前（反了就有一帧全亮，观感是封面闪现 + 底色提前出现）");
+  ok(/gsap\.set\('#fxImg', \{ opacity: 1 \}\)/.test(open),
+     '替身落地时面板海报是瞬切不是淡入（淡入会露出一帧半透明，就是那下闪）');
+  ok(/onComplete\(\) \{ onLand\(\); el\.remove\(\)/.test(html),
+     '先点亮落地那头再撤替身（反过来中间会空一帧）');
+  ok(/gsap\.to\(SHELL, \{ opacity: 1/.test(open),
+     '底色三层走同一条时间轴（各走各的就是「底色跟封面不一起动」）');
+
+  // 三层底色必须同色，否则一个面板里几种灰，动起来一眼看出是几块拼的
+  ok(/\.fx-back\{position:absolute;inset:0;background:var\(--bg\)\}/.test(html),
+     '面板底色用页面底色，不再压一层半透明黑罩');
+  ok(!/\.fx-back\{[^}]*backdrop-filter/.test(html),
+     '底色层没有 backdrop-filter（在它上面做 opacity 动画会掉帧，淡出常卡住）');
+  ok(/\.fx-poster\{[^}]*background:var\(--sf\)/.test(html),
+     '海报槽底色跟背板同色（原来是 --sf-2，退场时露出来就是「封面的底」）');
+
+  /* 工具栏是 sticky 的，会压住底下卡片的上沿。替身 z-index 80 直接盖过它，
+     从被压住的位置起飞，观感就是「越过顶栏突然出现」 */
+  ok(/function clearBar/.test(html) && /await clearBar\(id\)/.test(html),
+     '起飞前先把卡片滚出工具栏的遮挡范围');
+  ok(/belowBar\(to\) \? to : null/.test(html),
+     '回程落点被工具栏压住时就不飞（滚动锁着滚不动，淡出比穿过顶栏干净）');
+  ok(/const barBottom = \(\) => \{[\s\S]{0,220}getBoundingClientRect/.test(html),
+     '工具栏底边是实测量的，不是写死的 px');
+}
+
+console.log('\n[进门与密钥]');
+{
+  /* 线上真出过的事故：注册页把密钥显示 1.8 秒就自动跳进站，文案还写「浏览器已经记住了」。
+     记的只是 localStorage 里一份，换设备/清缓存就没了；输入框又写着 autocomplete=off，
+     密码管理器压根没收录。组员第二天登不进来，只能回头找管理员。
+     两头都得钉住：密钥字段要让密码管理器认，注册完必须由人自己点一下才走 */
+  const pane = (html.match(/<form id="paneLogin"[\s\S]*?<\/form>/) || [''])[0];
+  ok(!!pane, '进门页的登录区是真的 <form>（密码管理器只认表单提交）');
+  ok(/id="key"[^>]*type="password"/.test(pane), '密钥字段是 type=password');
+  ok(/id="key"[\s\S]{0,160}autocomplete="current-password"/.test(pane),
+     '密钥字段声明 autocomplete=current-password（原来是 off，等于叫浏览器别管）');
+  ok(/autocomplete="username"/.test(pane), '配了用户名字段（密码管理器要成对才肯保存）');
+  ok(!/id="key"[^>]*autocomplete="off"/.test(html), '密钥字段没有 autocomplete=off');
+  ok(/id="peek"/.test(pane) && /\$\('#peek'\)\.onclick/.test(html),
+     '密钥能点开看（字母表专门去掉 0/O/1/I/L 就是给人手抄的，看不见没法核对）');
+  ok(!/setTimeout\(\(\) => enter\(/.test(html),
+     '注册完不再自动跳进站（密钥要停在屏幕上等人存好）');
+  ok(/id="keyGo"/.test(html) && /\$\('#keyGo'\)\.onclick = \(\) => enter\(/.test(html),
+     '改成由「我已存好，进入」触发');
+  ok(/id="keyCopy"/.test(html) && /clipboard\.writeText/.test(html), '密钥能一键复制');
+  // 只验给用户看的那句提示，别把源码注释也算进来
+  const tip = (html.match(/\$\('#keyTip'\)\.textContent = ([\s\S]*?);\n/) || ['', ''])[1];
+  ok(!!tip && !/浏览器/.test(tip), '提示语不再宣称浏览器已经替他记住了密钥', tip.slice(0, 40));
+  ok(/找管理员重置/.test(html), '注册页写明忘了可以找管理员重置（有这条兜底才敢让他自己保管）');
 }
 
 console.log('\n[响应式]');
@@ -296,9 +357,18 @@ console.log('\n[后端契约]');
   ok(/const source = ballots \? 'archive' : 'kv'/.test(w), 'results 回带数据来源，前端和测试才验得了');
   ok(/pathname === '\/api\/register'/.test(w) && /inv\.used/.test(w), '注册码用一次即作废');
   ok(/pathname === '\/admin'/.test(w), '/admin 直出管理页');
-  const guarded = ['/api/invite', '/api/invites', '/api/uninvite', '/api/keys', '/api/revoke', '/api/delete', '/api/claim']
+  const ADMIN_EP = ['/api/invite', '/api/invites', '/api/uninvite', '/api/keys',
+                    '/api/revoke', '/api/reset', '/api/delete', '/api/claim'];
+  const guarded = ADMIN_EP
     .filter((ep) => new RegExp("pathname === '" + ep + "'\\) \\{\\n\\s*if \\(!admin\\)").test(w));
-  ok(guarded.length === 7, `7 个管理端点第一行就查权限（实得 ${guarded.length}）`);
+  ok(guarded.length === ADMIN_EP.length, `${ADMIN_EP.length} 个管理端点第一行就查权限（实得 ${guarded.length}）`);
+  /* 重置要先把旧密钥的两条映射都删掉再建新的。少删 who: 那条，旧密钥照样能登进来，
+     「重置」就成了「多发一枚」，而忘了密钥的人正是最常见的那个入口 */
+  const reset = (w.match(/pathname === '\/api\/reset'\)[\s\S]*?\n    \}/) || [''])[0];
+  ok(/VOTES\.delete\('who:' \+ old\)/.test(reset) && /VOTES\.delete\('name:' \+ name\)/.test(reset),
+     '重置密钥时旧的两条映射都删掉了（漏删 who: 旧密钥还能登）');
+  ok(reset.indexOf('keyFor') > reset.indexOf("delete('name:'"),
+     '先删干净再建新密钥（顺序反了会原样拿回旧的那枚）');
 }
 
 console.log('\n[管理页]');

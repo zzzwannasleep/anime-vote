@@ -111,7 +111,7 @@ td.k{font-family:var(--mono);color:var(--acc);font-weight:600;white-space:nowrap
 
   <section>
     <h2>已发密钥</h2>
-    <p class="tip">补发给忘了密钥的人，或者吊销离组成员。吊销只作废密钥，他投过的票还在。</p>
+    <p class="tip">忘了密钥点「重置」换一枚新的，旧的当场作废；离组的点「吊销」。两种都不动他投过的票。</p>
     <div id="keys"><div class="empty">载入中</div></div>
   </section>
 
@@ -218,7 +218,10 @@ async function loadKeys() {
       d.keys.map((k) => '<tr>' +
         '<td>' + esc(k.name) + '</td>' +
         '<td class="k">' + esc(k.key) + '</td>' +
-        '<td><button class="ghost mini" data-rv="' + esc(k.name) + '">吊销</button></td>' +
+        '<td class="row" style="gap:6px;justify-content:flex-end">' +
+          '<button class="ghost mini" data-rs="' + esc(k.name) + '">重置</button>' +
+          '<button class="ghost mini" data-rv="' + esc(k.name) + '">吊销</button>' +
+        '</td>' +
       '</tr>').join('') + '</table>';
   } catch (e) { $('#keys').innerHTML = '<div class="empty">' + esc(e.message) + '</div>'; }
 }
@@ -228,11 +231,19 @@ const refresh = () => { loadInvites(); loadKeys(); };
 document.addEventListener('click', async (e) => {
   const un = e.target.closest('[data-un]');
   const rv = e.target.closest('[data-rv]');
+  const rs = e.target.closest('[data-rs]');
   $('#msg').textContent = '';
   try {
     if (un) { await api('/uninvite', { token: un.dataset.un }); loadInvites(); }
     if (rv && confirm('吊销「' + rv.dataset.rv + '」的密钥？他投过的票不受影响。')) {
       await api('/revoke', { name: rv.dataset.rv });
+      loadKeys();
+    }
+    // 重置完新密钥只在这一次响应里出现，表格刷新后也还能看到，
+    // 但还是当场抄下来私发给本人最稳
+    if (rs && confirm('给「' + rs.dataset.rs + '」换一枚新密钥？旧的立刻失效，票不受影响。')) {
+      const d = await api('/reset', { name: rs.dataset.rs });
+      $('#msg').textContent = d.name + ' 的新密钥：' + d.key + '（旧的已失效，私发给本人）';
       loadKeys();
     }
   } catch (err) { $('#msg').textContent = err.message; }

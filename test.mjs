@@ -202,7 +202,8 @@ console.log('\n[已截止的季度走仓库存档，零 KV]');
 console.log('\n[权限]');
 {
   for (const [ep, body] of [['/delete', { name: N1 }], ['/keys', {}], ['/revoke', { name: N2 }],
-                            ['/claim', { name: 'x' }], ['/invite', { count: 1 }], ['/invites', {}],
+                            ['/reset', { name: N2 }], ['/claim', { name: 'x' }],
+                            ['/invite', { count: 1 }], ['/invites', {}],
                             ['/uninvite', { token: T1 }]])
     ok((await post(ep, { key: K1, ...body })).status === 403, `普通密钥调 ${ep} -> 403`);
 
@@ -213,6 +214,24 @@ console.log('\n[权限]');
   ok((await post('/delete', { key: ADMIN, name: N1, season: SEASON })).status === 200, '管理员删票 -> 200');
   const r = await post('/results', { key: ADMIN, season: SEASON });
   ok(!r.json.voters.some((v) => v.name === N1), '删掉的提名不再出现在汇总里');
+
+  /* 重置密钥：组员忘了自己那枚时的唯一出路。以前只能「吊销 + 重新发一条注册链接」，
+     中间他是彻底进不来的，而且换条链接就换个名字，票也就断了。
+     重置保持名字不变，所以他之前投的票接着算 */
+  const before = (await post('/results', { key: ADMIN, season: SEASON }))
+    .json.voters.find((v) => v.name === N2);
+  const rs = await post('/reset', { key: ADMIN, name: N2 });
+  ok(rs.status === 200 && /^[0-9A-Z]{4}-[0-9A-Z]{4}-[0-9A-Z]{4}$/.test(rs.json.key || '') && rs.json.key !== K2,
+     '管理员重置密钥，换回一枚新的', rs.json.key);
+  ok(rs.json.had === true, '返回里标明他本来就有密钥（区分「重置」和「第一次发」）');
+  ok((await post('/auth', { key: K2 })).status === 401, '重置后旧密钥立刻登不进来');
+  const reauth = await post('/auth', { key: rs.json.key });
+  ok(reauth.status === 200 && reauth.json.name === N2, '新密钥登进来还是同一个人', reauth.json.name);
+  K2 = rs.json.key;
+  const after = (await post('/results', { key: K2, season: SEASON }))
+    .json.voters.find((v) => v.name === N2);
+  ok(!!before && !!after && before.count === after.count, '重置不动他投过的票', `${before?.count} -> ${after?.count}`);
+  ok(Array.isArray((await post('/results', { key: K2, season: SEASON })).json.mine), '新密钥照样能把自己的票拉回来改');
 
   const rev = await post('/revoke', { key: ADMIN, name: N1 });
   ok(rev.status === 200 && rev.json.revoked, '管理员能吊销密钥');

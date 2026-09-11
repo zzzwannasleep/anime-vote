@@ -68,10 +68,22 @@ try {
   await page.waitForFunction(() => !document.getElementById('keyBox').classList.contains('hide'), { timeout: 10000 });
   myKey = await page.$eval('#keyVal', (el) => el.textContent.trim());
   ok(/^[0-9A-Z]{4}-[0-9A-Z]{4}-[0-9A-Z]{4}$/.test(myKey), '注册后当场拿到密钥', myKey);
+  /* 上一版这里是等 1.8 秒自动跳进站，密钥在屏幕上一闪就没了，文案还说浏览器记住了。
+     实际只记在 localStorage 里，换设备就没；密钥字段又写着 autocomplete=off，
+     密码管理器也收录不了。组员第二天集体登不进来。现在必须他自己点一下 */
+  await wait(2200);
+  ok(await page.$eval('#gate', (el) => !el.classList.contains('hide')), '密钥停在屏幕上，不会自己跳走');
+  ok(await page.$eval('#keyVal', (el) => el.textContent.trim()) === myKey, '两秒后密钥还看得见');
+  const field = await page.$eval('#key', (el) => ({ type: el.type, ac: el.autocomplete, val: el.value }));
+  ok(field.type === 'password' && field.ac === 'current-password',
+     '密钥字段是 type=password + autocomplete=current-password（密码管理器才认）', field.type + '/' + field.ac);
+  ok(field.val === myKey, '登录表单已经填好，点进入时是一次真的表单提交');
+  ok(await page.$eval('#uname', (el) => el.value).then((v) => v.length > 0), '配套的用户名字段也填上了');
   await shot('1-注册');
 
   console.log('\n[进门]');
-  await page.waitForSelector('#app:not(.hide)', { timeout: 12000 });   // 注册完会自动进
+  await page.click('#keyGo');                                          // 「我已存好，进入」
+  await page.waitForSelector('#app:not(.hide)', { timeout: 12000 });
   await wait(1400);
   ok(await page.$eval('#gate', (el) => el.classList.contains('hide')), '密钥通过后进门页收起');
   ok((await page.title()).includes('拨雪寻春'), '标题是「拨雪寻春番剧译制投票」');
@@ -231,6 +243,7 @@ try {
         op.push({
           body: +getComputedStyle(document.querySelector('.fx-body')).opacity,
           sheet: +getComputedStyle(document.querySelector('.fx-sheet')).opacity,
+          poster: +getComputedStyle(document.querySelector('.fx-poster')).opacity,
           nav: +getComputedStyle(document.querySelector('.fx-nav')).opacity,
           flyer: !!document.querySelector('.flyer'),
           hidden: document.getElementById('focus').classList.contains('hide'),
@@ -248,6 +261,8 @@ try {
         bodyMin: Math.min(...op.map((x) => x.body)),
         navMin: Math.min(...op.map((x) => x.nav)),
         sheetMin: Math.min(...op.map((x) => x.sheet)),
+        posterMin: Math.min(...op.map((x) => x.poster)),
+        posterAtHide: (vis[vis.length - 1] || {}).poster,
         bodyAtHide: (vis[vis.length - 1] || {}).body,
         flyerFrames: op.filter((x) => x.flyer).length,
         hidden: op[op.length - 1].hidden,
@@ -262,11 +277,101 @@ try {
     ok(c.bodyMin <= 0.1, `正文淡到了 ${c.bodyMin.toFixed(2)}（上一版全程是 1，被硬切）`);
     ok(c.navMin <= 0.1, `翻页按钮淡到了 ${c.navMin.toFixed(2)}`);
     ok(c.sheetMin <= 0.1, `背板淡到了 ${c.sheetMin.toFixed(2)}`);
+    // 用户报的「退出时封面的黑色底卡在那」：海报槽自带底色又不在淡出组里，
+    // 别人都淡完了它还是全不透明，直到 display:none 把它硬切掉
+    ok(c.posterMin <= 0.1, `海报槽也淡到了 ${c.posterMin.toFixed(2)}（原来全程是 1，退场时就是一块底色卡在那）`);
+    ok(c.posterAtHide <= 0.1, `面板被隐藏那一刻海报槽已经是 ${c.posterAtHide}`);
     ok(c.bodyAtHide <= 0.1, `面板被隐藏那一刻正文已经是 ${c.bodyAtHide}（不是悬在原地突然消失）`);
     ok(c.flyerFrames > 10, `回程替身飞了 ${c.flyerFrames} 帧`);
     ok(Math.abs(c.gridH1 - c.gridH0) < 2, '关闭后网格高度回到原样');
     ok(c.posters === 1 && c.posterVis === 'visible', '卡片海报恢复可见，且只有一张');
     ok(c.overflow !== 'hidden' && !c.padRight, '背景恢复可滚动，滚动条补偿也撤掉了');
+  }
+
+  console.log('\n[聚焦面板 · 开场第一帧不许闪]');
+  {
+    /* 报的是「点开时封面会闪现一下，底色也提前冒出来，整块主卡片还会再闪一下」。
+       根因是一个：上一版先 remove('hide') 把面板放出来，再 gsap.set opacity 0，
+       中间那一帧面板是全亮的。所以这里只看「面板可见的第一帧」，那一帧必须还是透明的 */
+    const f = await page.evaluate(async () => {
+      const card = document.querySelectorAll('.card')[4];
+      scrollTo(0, card.getBoundingClientRect().top + scrollY - 300);
+      await new Promise((r) => setTimeout(r, 400));
+      const fr = [];
+      let run = true;
+      const s = () => {
+        if (!run) return;
+        fr.push({
+          back: +getComputedStyle(document.querySelector('.fx-back')).opacity,
+          img: +getComputedStyle(document.getElementById('fxImg')).opacity,
+          poster: +getComputedStyle(document.querySelector('.fx-poster')).opacity,
+          hidden: document.getElementById('focus').classList.contains('hide'),
+        });
+        requestAnimationFrame(s);
+      };
+      requestAnimationFrame(s);
+      document.querySelectorAll('.card')[4].querySelector('.poster img').click();
+      await new Promise((r) => setTimeout(r, 1100));
+      run = false;
+      const vis = fr.filter((x) => !x.hidden);
+      const last = vis[vis.length - 1] || {};
+      return {
+        n: vis.length, first: vis[0] || {}, last,
+        // 底色一路涨上去就行，中途不能先冲到 1 再回落
+        backMaxEarly: Math.max(...vis.slice(0, 3).map((x) => x.back)),
+        imgMaxEarly: Math.max(...vis.slice(0, 3).map((x) => x.img)),
+      };
+    });
+    ok(f.n > 10, `开场采到 ${f.n} 帧`);
+    ok(f.first.back <= 0.15, `面板可见的第一帧底色还是透明的（${f.first.back}）`);
+    ok(f.first.img <= 0.15, `第一帧封面没有抢跑（${f.first.img}）`);
+    ok(f.backMaxEarly <= 0.5 && f.imgMaxEarly <= 0.5,
+       `前三帧底色和封面都还在淡入途中（${f.backMaxEarly} / ${f.imgMaxEarly}）`);
+    ok(f.last.back > 0.9 && f.last.img > 0.9 && f.last.poster > 0.9,
+       '动画跑完底色、海报槽、封面都到位');
+    await page.click('#fxClose');
+    await wait(800);
+  }
+
+  console.log('\n[聚焦面板 · 被顶栏压住的卡片]');
+  {
+    /* 工具栏是 sticky 的，会压住它底下卡片的上沿。替身是 z-index 80 的 fixed 层，
+       直接盖过工具栏，从被压住的位置起飞观感就是「越过顶栏突然出现」。
+       现在起飞前先把卡片滚出遮挡范围，起飞那一帧必须整个在工具栏下面 */
+    const b = await page.evaluate(async () => {
+      const bar = document.querySelector('#voteView .bar');
+      const card = document.querySelectorAll('.card')[20];
+      const h = bar.getBoundingClientRect().height;
+      scrollTo(0, card.getBoundingClientRect().top + scrollY - h + 22);   // 故意让上沿钻到工具栏下面
+      await new Promise((r) => setTimeout(r, 400));
+      const barBottom = bar.getBoundingClientRect().bottom;
+      const covered = card.querySelector('.poster').getBoundingClientRect().top < barBottom - 1;
+      let firstTop = null;
+      let run = true;
+      const s = () => {
+        if (!run) return;
+        const f = document.querySelector('.flyer');
+        if (f && firstTop === null) firstTop = f.getBoundingClientRect().top;
+        requestAnimationFrame(s);
+      };
+      requestAnimationFrame(s);
+      card.querySelector('.poster img').click();
+      await new Promise((r) => setTimeout(r, 1400));
+      run = false;
+      return {
+        covered, barBottom, firstTop,
+        startTop: card.querySelector('.poster').getBoundingClientRect().top,
+        opened: !document.getElementById('focus').classList.contains('hide'),
+      };
+    });
+    ok(b.covered, '这张卡片的上沿确实被工具栏压住了');
+    ok(b.opened, '照样点得开');
+    // 起飞点只有替身的第一帧量得准：卡片自己的位置在锁滚动补滚动条宽度后还会再挪一次
+    ok(b.firstTop !== null, '照样飞了（不是退化成原地淡入）');
+    ok(b.firstTop !== null && b.firstTop >= b.barBottom - 2,
+       `替身起飞那一帧整个在工具栏下面（${b.firstTop && Math.round(b.firstTop)} vs 栏底 ${Math.round(b.barBottom)}）`);
+    await page.click('#fxClose');
+    await wait(800);
   }
 
   console.log('\n[汇总页 · 排序重排]');
@@ -368,6 +473,39 @@ try {
     await p2.close();
   }
 
+  console.log('\n[手输密钥登录]');
+  {
+    /* 用户报的就是这条路走不通：注册时密钥没留住，第二天要手输却进不去。
+       而在此之前整套 uitest 没有一条覆盖「打开首页、手动输密钥、回车」这条最基本的路，
+       全靠注册自动跳转和 #k= 链接绕过去了，所以它坏了也没人发现 */
+    const p4 = await browser.newPage();
+    await p4.setViewport({ width: 1100, height: 900 });
+    await p4.goto(BASE + '/', { waitUntil: 'networkidle2', timeout: 20000 });
+    await p4.evaluate(() => localStorage.clear());
+    await p4.reload({ waitUntil: 'networkidle2', timeout: 20000 });
+    await wait(500);
+    ok(await p4.$eval('#gate', (el) => !el.classList.contains('hide')), '没有记住密钥时停在进门页');
+    await p4.type('#key', myKey);
+    await p4.keyboard.press('Enter');                       // 表单提交，不再靠 keydown 手动转发
+    await p4.waitForSelector('#app:not(.hide)', { timeout: 12000 });
+    await wait(600);
+    ok(await p4.$eval('#meName', (el) => el.textContent) === WHO, '手输密钥 + 回车能进站');
+    ok(await p4.evaluate(() => localStorage.getItem('vk')) === myKey, '进站后这台浏览器记住了密钥');
+
+    await p4.evaluate(() => { localStorage.clear(); });
+    await p4.reload({ waitUntil: 'networkidle2', timeout: 20000 });
+    await wait(500);
+    await p4.type('#key', 'ZZZZ-ZZZZ-ZZZZ');
+    await p4.click('#enter');
+    await wait(1800);
+    ok((await p4.$eval('#gateErr', (el) => el.textContent)).length > 0, '密钥不对时有提示，不是白屏');
+    ok(await p4.$eval('#app', (el) => el.classList.contains('hide')), '密钥不对时进不去');
+    // localStorage 是整个 origin 共享的，上面两下 clear() 连主页面的密钥一起清掉了。
+    // 后面手机布局那节还要靠它自动进站，走之前放回去
+    await p4.evaluate((k) => localStorage.setItem('vk', k), myKey);
+    await p4.close();
+  }
+
   console.log('\n[管理页]');
   {
     const p3 = await browser.newPage();
@@ -394,6 +532,28 @@ try {
     ok(links.every((l) => l.includes('/?j=')), '链接形如 站点/?j=注册码', links[0]);
     ok((await p3.$eval('#invites', (el) => el.innerText)).includes('未使用'), '未使用的注册链接列在下面');
     ok((await p3.$eval('#keys', (el) => el.innerText)).includes(WHO), '已发密钥名单里有刚注册的人');
+
+    /* 重置密钥。以前忘了密钥只能「吊销 + 重发一条注册链接」，中间人是彻底进不来的，
+       换条链接还要重填名字，票也就断了。这里走一遍管理页上的按钮，确认拿到的是新密钥、
+       旧的当场作废。用一个一次性的名字测，别把上面注册那位的密钥换掉 */
+    const RS = WHO + '_reset';
+    const claimed = await post('/claim', { name: RS });
+    p3.on('dialog', (d) => d.accept());
+    await p3.evaluate(() => loadKeys());
+    await p3.waitForSelector('[data-rs="' + RS + '"]', { timeout: 8000 });
+    await p3.click('[data-rs="' + RS + '"]');
+    await wait(1400);
+    const msg = await p3.$eval('#msg', (el) => el.textContent);
+    const fresh = (msg.match(/[0-9A-Z]{4}-[0-9A-Z]{4}-[0-9A-Z]{4}/) || [])[0];
+    ok(!!fresh && fresh !== claimed.key, '管理页上点重置，当场给出一枚新密钥', fresh);
+    ok((await p3.$eval('#keys', (el) => el.innerText)).includes(fresh || 'x'), '名单里也换成新的了');
+    const oldTry = await fetch(BASE + '/api/auth', {
+      method: 'POST', headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ key: claimed.key }),
+    });
+    ok(oldTry.status === 401, '旧密钥立刻登不进来了', String(oldTry.status));
+    await post('/revoke', { name: RS });
+
     await shot('6-管理页');
     await p3.close();
   }

@@ -1,7 +1,8 @@
 // 抓取指定年月的新番 -> public/season/<年>-<月>.json，并把该季登记进 public/seasons.json
-// 用法: node fetch-anime.mjs 2027 1 [--all] [--current]
+// 用法: node fetch-anime.mjs 2027 1 [--all] [--current] [--world]
 //   --all      连剧场版/OVA 一起要（默认只 TV/WEB）
 //   --current  抓完把这一季设为默认打开的季度
+//   --world    连非日本的动画一起要（默认只留日漫）
 //
 // 两段式抓取：搜索接口拿列表，再逐部拉 /v0/subjects/{id} 补 staff。
 // 详情接口一次只能一部，所以这里会串行几十个请求，慢是正常的——
@@ -10,6 +11,7 @@ import { readFileSync, writeFileSync, mkdirSync, existsSync } from 'node:fs';
 
 const [year, month] = [process.argv[2] || '2026', process.argv[3] || '10'];
 const keepAll = process.argv.includes('--all');
+const keepWorld = process.argv.includes('--world');
 const setCurrent = process.argv.includes('--current');
 const UA = 'AnimeVote/1.0 (https://github.com/zzzwannasleep/anime-vote)';
 // bgm 的这两个接口都匿名可用（实测 200，带个瞎编的 token 也照样 200，它压根不看）。
@@ -65,7 +67,31 @@ const STAFF_KEYS = [
 const flat = (v) => (Array.isArray(v) ? v.map((x) => x?.v).filter(Boolean).join('、') : String(v || ''))
   .replace(/\s+/g, ' ').trim().slice(0, 60);
 
+/* 只留日漫。bgm 的 type=2 里混着美漫、法国动画、国产动画，条目结构跟日本番一模一样，
+   platform 也照样是 TV / WEB，光按 platform 过滤分不开：2026-10 那一季就漏进来
+   探险时光、降世神通、极恶老大、闹鬼酒店、Dreamland 五部。
+
+   判据按「看字形分不分得出来」拆成两档，一刀切会误杀：
+     中文圈和韩国的条目，staff 名单也是汉字，跟日文名长得一模一样，
+       字形帮不上忙，只能认标签 -> 硬否决。
+     欧美的条目字形就分得开（staff 全是拉丁字母），所以标签只当补充证据，
+       可以被日文 staff 推翻。必须能推翻：Cyberpunk: Edgerunners 是 TRIGGER 做的日本番，
+       但它被一堆人同时打了「日本」和「欧美」两个标签，硬否决就会把它误杀。
+   制作名单里出现假名/汉字，是最硬的产地证据，比用户随手打的标签可信得多。
+   残留的缺口：没有任何产地标签、标题又是纯中文的国产番会漏进来。
+   bgm 上这类基本都被标过「国产」，真漏了就往 CJK_REGION 里补一条。 */
+const CJK_REGION = /^(中国|中国大陆|中国动画|国产|国产动画|国漫|台湾|香港|港台|韩国|韩国动画|韩国动漫|韩漫改)$/;
+const WEST = /^(欧美|美漫|美国|美国动画|英国|英国动画|法国|法国动画|德国|加拿大|西班牙|意大利|爱尔兰|俄罗斯|波兰|丹麦|巴西|印度|泰国|越南)$/;
+const JP_CHAR = /[\u3040-\u30ff\u3400-\u9fff]/;          // 假名或汉字
+const isJP = (s, staff) => {
+  const tags = (s.tags || []).map((t) => t.name);
+  if (tags.some((t) => CJK_REGION.test(t))) return false;
+  if (staff.some(([, v]) => JP_CHAR.test(v))) return true;
+  return !tags.some((t) => WEST.test(t)) && JP_CHAR.test(s.name || '');
+};
+
 const list = [];
+const dropped = [];
 for (const [i, s] of picked.entries()) {
   let info = {};
   try {
@@ -76,6 +102,12 @@ for (const [i, s] of picked.entries()) {
   const staff = STAFF_KEYS
     .map(([label, aliases]) => [label, flat(box.find((b) => aliases.includes(b.key))?.value)])
     .filter(([, v]) => v);
+
+  if (!keepWorld && !isJP(s, staff)) {
+    dropped.push(s.name_cn || s.name);
+    process.stderr.write(`非日漫，跳过 ${s.name_cn || s.name}\n`);
+    continue;
+  }
 
   list.push({
     id: s.id,
@@ -125,3 +157,5 @@ writeFileSync(SEASONS, JSON.stringify(cur, null, 2));
 const withStaff = list.filter((x) => x.staff.length).length;
 console.log(`\n${list.length} 部 -> ${OUT}（${withStaff} 部带 staff${unchanged ? '，跟上次一模一样' : ''}）`);
 console.log(`seasons.json 现有 ${cur.list.length} 季，当前 = ${cur.current}`);
+// 把筛掉的打出来，误伤了当场看得见（真误伤就 --world 重跑一次）
+if (dropped.length) console.log(`筛掉 ${dropped.length} 部非日本动画：${dropped.join('、')}`);
